@@ -1,0 +1,314 @@
+[
+  {
+    "text": "Alex",
+    "start": 253968,
+    "end": 254225,
+    "speaker": "A"
+  },
+  {
+    "text": "Rivera,",
+    "start": 254225,
+    "end": 254594,
+    "speaker": "A"
+  },
+  {
+    "text": "to",
+    "start": 254851,
+    "end": 254980,
+    "speaker": "A"
+  },
+  {
+    "text": "introduce",
+    "start": 255173,
+    "end": 255895,
+    "speaker": "A"
+  },
+  {
+    "text": "us",
+    "start": 255960,
+    "end": 256104,
+    "speaker": "A"
+  },
+  {
+    "text": "to",
+    "start": 256152,
+    "end": 256281,
+    "speaker": "A"
+  },
+  {
+    "text": "the",
+    "start": 256281,
+    "end": 256377,
+    "speaker": "A"
+  },
+  {
+    "text": "team.",
+    "start": 256377,
+    "end": 256715,
+    "speaker": "A"
+  },
+  {
+    "text": "Over",
+    "start": 257422,
+    "end": 257582,
+    "speaker": "A"
+  },
+  {
+    "text": "to",
+    "start": 257582,
+    "end": 257711,
+    "speaker": "A"
+  },
+  {
+    "text": "you,",
+    "start": 257727,
+    "end": 257903,
+    "speaker": "A"
+  },
+  {
+    "text": "Alex.",
+    "start": 257919,
+    "end": 258225,
+    "speaker": "A"
+  },
+  {
+    "text": "Hey,",
+    "start": 259494,
+    "end": 259526,
+    "speaker": "B"
+  },
+  {
+    "text": "thank",
+    "start": 259831,
+    "end": 260136,
+    "speaker": "B"
+  },
+  {
+    "text": "you.",
+    "start": 260136,
+    "end": 260168,
+    "speaker": "B"
+  },
+  {
+    "text": "Yes,",
+    "start": 260474,
+    "end": 260699,
+    "speaker": "B"
+  },
+  {
+    "text": "welcome.",
+    "start": 260875,
+    "end": 261405,
+    "speaker": "B"
+  },
+  {
+    "text": "I'm",
+    "start": 261518,
+    "end": 262048,
+    "speaker": "B"
+  },
+  {
+    "text": "your",
+    "start": 262144,
+    "end": 262257,
+    "speaker": "B"
+  },
+  {
+    "text": "host",
+    "start": 262305,
+    "end": 262546,
+    "speaker": "B"
+  },
+  {
+    "text": "today,",
+    "start": 262546,
+    "end": 262787,
+    "speaker": "B"
+  },
+  {
+    "text": "Alex",
+    "start": 262819,
+    "end": 263124,
+    "speaker": "B"
+  },
+  {
+    "text": "Rivera,",
+    "start": 263124,
+    "end": 263333,
+    "speaker": "B"
+  },
+  {
+    "text": "as",
+    "start": 264072,
+    "end": 264120,
+    "speaker": "B"
+  },
+  {
+    "text": "usual.",
+    "start": 264233,
+    "end": 264731,
+    "speaker": "B"
+  },
+  {
+    "text": "And",
+    "start": 264795,
+    "end": 265004,
+    "speaker": "B"
+  },
+  {
+    "text": "today",
+    "start": 265116,
+    "end": 265437,
+    "speaker": "B"
+  },
+  {
+    "text": "we",
+    "start": 265437,
+    "end": 265518,
+    "speaker": "B"
+  },
+  {
+    "text": "have",
+    "start": 265518,
+    "end": 265711,
+    "speaker": "B"
+  },
+  {
+    "text": "a",
+    "start": 265711,
+    "end": 265855,
+    "speaker": "B"
+  },
+  {
+    "text": "wonderful",
+    "start": 265855,
+    "end": 266337,
+    "speaker": "B"
+  },
+  {
+    "text": "panel",
+    "start": 266337,
+    "end": 267590,
+    "speaker": "B"
+  },
+  {
+    "text": "to",
+    "start": 267606,
+    "end": 267702,
+    "speaker": "B"
+  },
+  {
+    "text": "talk",
+    "start": 267702,
+    "end": 267943,
+    "speaker": "B"
+  },
+  {
+    "text": "to",
+    "start": 268008,
+    "end": 268152,
+    "speaker": "B"
+  },
+  {
+    "text": "us",
+    "start": 268168,
+    "end": 268297,
+    "speaker": "B"
+  },
+  {
+    "text": "about",
+    "start": 268490,
+    "end": 269068,
+    "speaker": "B"
+  },
+  {
+    "text": "nutrition",
+    "start": 269550,
+    "end": 270160,
+    "speaker": "B"
+  },
+  {
+    "text": "and",
+    "start": 270353,
+    "end": 270562,
+    "speaker": "B"
+  },
+  {
+    "text": "food",
+    "start": 270578,
+    "end": 270771,
+    "speaker": "B"
+  },
+  {
+    "text": "security",
+    "start": 270771,
+    "end": 271445,
+    "speaker": "B"
+  },
+  {
+    "text": "in",
+    "start": 271542,
+    "end": 271606,
+    "speaker": "B"
+  },
+  {
+    "text": "Africa.",
+    "start": 271863,
+    "end": 272345,
+    "speaker": "B"
+  },
+  {
+    "text": "I",
+    "start": 274501,
+    "end": 274549,
+    "speaker": "B"
+  },
+  {
+    "text": "am",
+    "start": 274904,
+    "end": 275065,
+    "speaker": "B"
+  },
+  {
+    "text": "not",
+    "start": 275404,
+    "end": 275662,
+    "speaker": "B"
+  },
+  {
+    "text": "seeing",
+    "start": 275662,
+    "end": 276016,
+    "speaker": "B"
+  },
+  {
+    "text": "where",
+    "start": 276113,
+    "end": 276226,
+    "speaker": "B"
+  },
+  {
+    "text": "Jordan",
+    "start": 276290,
+    "end": 276822,
+    "speaker": "B"
+  },
+  {
+    "text": "went",
+    "start": 276919,
+    "end": 277225,
+    "speaker": "B"
+  },
+  {
+    "text": "to,",
+    "start": 277257,
+    "end": 277596,
+    "speaker": "B"
+  },
+  {
+    "text": "but",
+    "start": 278466,
+    "end": 278869,
+    "speaker": "B"
+  }
+]

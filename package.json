@@ -1,0 +1,8 @@
+{
+  "name": "pipeline-one-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

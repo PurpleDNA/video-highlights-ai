@@ -1,0 +1,24 @@
+# Secrets
+.env
+
+# Generated output
+output/
+
+# Webinar transcripts. Real session content — the repo is public and these
+# are not ours to publish. The tool reads them from OPFS or the work folder
+# at runtime; nothing here needs them checked in. The only transcript text in
+# the repo is test/fixtures-assemblyai-words.json, 52 words with the names
+# replaced, kept because its real AssemblyAI timings are what the cue and
+# snapping tests assert against.
+transcripts/
+monday_night_raw.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# Large media (masters live elsewhere; don't commit them)
+webinar recordings/
+
+# Throwaway spikes (see docs/superpowers/specs/)
+spike/

@@ -1,0 +1,1194 @@
+/* GF PBP Video Highlights — internal review tool.
+   Cool paper workspace under deep-teal chrome. Wheat means "highlight" and is
+   used nowhere else; each panelist carries one muted hue across the timeline,
+   the index and the detail pane, so a speaker is recognisable at a glance. */
+
+/* Archivo and Newsreader, vendored under web/vendor/fonts/ rather than
+   pulled from Google Fonts — the page's one remaining cross-origin request,
+   and one the service worker's offline promise couldn't actually keep (see
+   CLAUDE.md's PWA section). Both are variable fonts; declaring the same file
+   three times per family, once per weight actually used, mirrors exactly
+   what Google's own CSS did — the browser reads the right weight from the
+   file's own variable axis. */
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./vendor/fonts/archivo-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./vendor/fonts/archivo-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./vendor/fonts/archivo-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./vendor/fonts/newsreader-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./vendor/fonts/newsreader-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./vendor/fonts/newsreader-variable.woff2") format("woff2");
+}
+
+:root {
+  --paper:      #F2F4F0;
+  --surface:    #FBFCFA;
+  --raised:     #FFFFFF;
+  --ink:        #17211E;
+  --ink-2:      #55655F;
+  --ink-3:      #7E8C87;
+  --rule:       #DBE1DA;
+  --rule-2:     #C2CBC4;
+  --teal:       #1C5A52;
+  --teal-deep:  #123F39;
+  --teal-wash:  #E3EDE9;
+  --wheat:      #9C6410;
+  --wheat-wash: #F3E7CE;
+  --danger:     #94382A;
+  --danger-wash:#F6E5E0;
+  --chrome:     #14231F;
+  --chrome-ink: #E9EFEA;
+  --chrome-dim: #8EA39B;
+
+  /* One per speaker, assigned in order of appearance. Muted enough to sit
+     together on the timeline without any one of them shouting. */
+  --hue-1: #2E6E86;  --hue-2: #A2563C;  --hue-3: #5F7038;
+  --hue-4: #7C4A57;  --hue-5: #4C5B77;  --hue-6: #37715C;
+
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+
+  --sans: "Archivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --serif: "Newsreader", Charter, "Iowan Old Style", Georgia, serif;
+  --shadow: 0 1px 2px rgba(23, 33, 30, .05), 0 8px 24px -16px rgba(23, 33, 30, .28);
+  --rail: 312px;
+  --chrome-h: 58px;
+}
+
+/* The input, settings and run views carry this class. It no longer repaints
+   anything: the aubergine shell it used to define was a revamp-era choice
+   that left the review desk on the original green, which meant one header
+   colour could not sit correctly on both. The views follow the same palette
+   as the rest of the app again — green in dark mode, light in light mode —
+   and the class is kept only as a hook for layout rules below. */
+
+/* Visually hidden but still in the tab order and still clickable via its
+   label — the real <input type="file"> behind the hero slot. A drop target
+   that only works with a mouse is not acceptable; this is what makes Tab,
+   then Enter or Space, open the same native picker a click would. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:      #101A17;
+    --surface:    #16211E;
+    --raised:     #1B2724;
+    --ink:        #E7EDE8;
+    --ink-2:      #9DACA6;
+    --ink-3:      #78857F;
+    --rule:       #27332F;
+    --rule-2:     #35433E;
+    --teal:       #74C2B0;
+    --teal-deep:  #A5DBCC;
+    --teal-wash:  #1A2E29;
+    --wheat:      #D8A24C;
+    --wheat-wash: #2E2417;
+    --danger:     #E08573;
+    --danger-wash:#2C1B18;
+    --chrome:     #0C1614;
+    --hue-1: #7FB6CB;  --hue-2: #D18E74;  --hue-3: #A3B677;
+    --hue-4: #C58D9B;  --hue-5: #93A3C4;  --hue-6: #79B79C;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -18px rgba(0, 0, 0, .7);
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* Scrollbars: thin, in the palette, with no track and no buttons. The standard
+   properties win in current browsers; the -webkit- block covers older ones. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-2) transparent;
+}
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner { background: transparent; }
+
+::-webkit-scrollbar-thumb {
+  background: var(--rule-2);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); background-clip: content-box; }
+
+/* Every state in this page is toggled with the `hidden` attribute, and several
+   of those elements set their own `display`. Let `hidden` win. */
+[hidden] { display: none !important; }
+
+html, body { margin: 0; }
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 500; }
+p { margin: 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; }
+.muted { color: var(--ink-2); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── chrome ─────────────────────────────────────────────────────────── */
+
+.chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  padding: 0 var(--sp-5);
+  height: var(--chrome-h);
+  flex: none;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--chrome);
+  color: var(--chrome-ink);
+}
+
+.chrome-mark { display: flex; align-items: baseline; gap: var(--sp-3); min-width: 0; }
+
+.org {
+  font-size: 11px;
+  letter-spacing: .01em;
+  color: var(--chrome-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool {
+  font: 500 19px/1 var(--serif);
+  letter-spacing: -.01em;
+  padding-left: var(--sp-3);
+  border-left: 1px solid rgba(255, 255, 255, .16);
+  white-space: nowrap;
+}
+
+.chrome-right { display: flex; align-items: center; gap: var(--sp-4); }
+.crumbs .linkish { color: var(--chrome-ink); }
+
+.env { display: flex; gap: var(--sp-3); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--chrome-dim);
+  white-space: nowrap;
+}
+
+.chip::before {
+  content: "";
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #6FBFA4;
+}
+
+.chip.off { color: #E9B08F; }
+.chip.off::before { background: #D0763F; }
+
+/* Who built the thing. Sits quietly next to the gear — an attribution, not a
+   brand bar, so it stays at chip weight and drops its text on narrow screens
+   rather than competing with the tool's own name on the left. */
+.made-by {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  font-size: 11.5px;
+  color: var(--chrome-dim);
+  white-space: nowrap;
+}
+
+.made-by img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+
+.made-by b { color: var(--chrome-ink); font-weight: 600; }
+
+@media (max-width: 760px) {
+  .made-by-text { display: none; }
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  color: var(--chrome-dim);
+  border-radius: 50%;
+  text-decoration: none;
+  transition: color .13s, background .13s;
+}
+
+.icon-btn:hover { color: var(--chrome-ink); background: rgba(255, 255, 255, .1); }
+
+/* ── views ──────────────────────────────────────────────────────────── */
+
+#main { flex: 1; }
+
+.view[hidden] { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .view:not([hidden]) { animation: settle .22s ease-out; }
+  @keyframes settle { from { opacity: 0; transform: translateY(4px); } }
+}
+
+.col {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: var(--sp-7) var(--sp-5) var(--sp-7);
+}
+
+.col.narrow { max-width: 660px; }
+
+/* ── settings ───────────────────────────────────────────────────────── */
+
+.settings-stack { display: flex; flex-direction: column; gap: var(--sp-5); }
+
+/* ── settings / run: the plain heading each of those views still uses ── */
+
+.intro { margin-bottom: var(--sp-6); max-width: 60ch; }
+
+.intro h2 {
+  font: 400 21px/1.35 var(--serif);
+  letter-spacing: -.008em;
+  margin-bottom: var(--sp-2);
+}
+
+.intro p { color: var(--ink-2); max-width: 62ch; }
+
+/* ── input: the hero ───────────────────────────────────────────────────
+   The video slot, not a headline above a form: a large, inviting 16:9 frame
+   that is the one obvious thing to act on. It accepts a click (the native
+   file picker, via the hidden input the whole label wraps) and a drop —
+   see app.js's wireDropzone(). After a file lands, the same element shows
+   its poster frame instead of the empty prompt, so the video reads as
+   landing in the slot it was always going to occupy. */
+
+.hero { margin-bottom: var(--sp-6); }
+
+.hero-copy { max-width: 58ch; margin-bottom: var(--sp-5); }
+
+.hero-title {
+  font: 400 clamp(2.1rem, 4.6vw, 3.25rem)/1.1 var(--serif);
+  letter-spacing: -.02em;
+  margin-bottom: var(--sp-3);
+}
+
+.hero-sub { font-size: 16px; line-height: 1.6; color: var(--ink-2); max-width: 52ch; }
+
+.slot {
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 58vh;
+  background: var(--surface);
+  /* This border is the page's only call to action before a file exists, so it
+     carries more weight than a normal field outline — thicker, with longer
+     dashes and a warmer edge than --rule-2, which is tuned for quiet
+     dividers. */
+  border: 2.5px dashed var(--ink-3);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .slot { transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
+}
+
+.slot:hover { border-color: var(--teal); }
+
+.slot:has(#recording:focus-visible) {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+  border-color: var(--teal);
+}
+
+.slot.dragover {
+  border-color: var(--teal);
+  border-style: solid;
+  background: color-mix(in srgb, var(--teal) 14%, var(--surface));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .slot.dragover { transform: scale(1.006); }
+}
+
+.slot-empty,
+.slot-filled { width: 100%; height: 100%; }
+
+.slot-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: var(--sp-5);
+  text-align: center;
+  color: var(--ink-3);
+}
+
+.slot-prompt { font: 500 17px/1.3 var(--sans); color: var(--ink); }
+.slot-hint { font-size: 13px; color: var(--ink-3); }
+
+.slot-poster {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #0C0910;
+  object-fit: cover;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .slot-filled.enter { animation: slot-arrive .32s cubic-bezier(.2, .7, .3, 1) both; }
+  @keyframes slot-arrive { from { opacity: 0; transform: scale(.98); } }
+}
+
+.slot-caption {
+  margin-top: var(--sp-3);
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── settings: the console (key panes, one per card) ──────────────────── */
+
+.console {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  box-shadow: var(--shadow);
+}
+
+.console-pane { padding: var(--sp-5); min-width: 0; }
+
+.pane-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.pane-head h3 { font-size: 13px; font-weight: 600; letter-spacing: .005em; }
+.pane-note { font-size: 12px; color: var(--ink-3); }
+
+/* the optional "also save to a folder" mirror — now on the settings page */
+
+.folderpick {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.filemeta { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+
+.fileerror {
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 12.5px;
+  color: var(--danger);
+  background: var(--danger-wash);
+  border-radius: 2px;
+}
+
+/* fields */
+
+.field { display: block; }
+.field + .field { margin-top: var(--sp-4); }
+
+.field-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.field input,
+.field select,
+.field textarea,
+.settings-body input[type="number"] {
+  width: 100%;
+  padding: 9px 11px;
+  font: 400 14px/1.4 var(--sans);
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule-2);
+  border-radius: 2px;
+}
+
+.field select:disabled { color: var(--ink-3); cursor: not-allowed; }
+.field textarea { resize: vertical; min-height: 88px; font-family: var(--sans); }
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.field input::placeholder,
+.field textarea::placeholder { color: var(--ink-3); }
+
+.field-help { display: block; font-size: 12px; color: var(--ink-3); margin-top: 5px; }
+.field-help.bad { color: var(--danger); }
+.field-help.good { color: var(--teal); }
+
+/* ── input: launch ──────────────────────────────────────────────────── */
+
+.launch {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  margin-top: var(--sp-5);
+}
+
+.launch-what { max-width: 54ch; color: var(--ink-2); font-size: 13px; }
+.launch-go { display: flex; align-items: center; gap: var(--sp-4); }
+.launch-block { font-size: 12.5px; color: var(--danger); max-width: 30ch; text-align: right; }
+
+.settings { margin-top: var(--sp-3); }
+
+.settings summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--teal);
+  width: max-content;
+}
+
+.settings-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-5);
+  align-items: flex-start;
+  margin-top: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--surface);
+}
+
+.mini { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
+.mini input { width: 78px; }
+
+/* ── buttons ────────────────────────────────────────────────────────── */
+
+button { font-family: var(--sans); }
+
+.primary {
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #FBFCFA;
+  background: var(--teal);
+  border: 1px solid var(--teal);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background .13s;
+}
+
+.primary:hover:not(:disabled) { background: var(--teal-deep); border-color: var(--teal-deep); }
+.primary:disabled { opacity: .42; cursor: not-allowed; }
+
+@media (prefers-color-scheme: dark) { .primary { color: #0C1614; } }
+
+.ghost {
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color .13s, background .13s;
+}
+
+.ghost:hover:not(:disabled) { border-color: var(--ink-3); background: var(--surface); }
+.ghost:disabled { opacity: .45; cursor: not-allowed; }
+
+.linkish {
+  padding: 0;
+  font: inherit;
+  color: var(--teal);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+}
+
+/* ── input: earlier runs ────────────────────────────────────────────── */
+
+.earlier { margin-top: var(--sp-7); }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--sp-2);
+}
+
+.section-head h3 { font-size: 13px; font-weight: 600; }
+.section-head span { font-size: 12px; color: var(--ink-3); }
+
+.runrow {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: var(--sp-5);
+  width: 100%;
+  padding: 11px var(--sp-2);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  color: inherit;
+}
+
+.runrow:hover { background: var(--surface); }
+.runrow-name { font: 500 15px/1.3 var(--serif); }
+.runrow-meta, .runrow-date { font-size: 12px; color: var(--ink-2); }
+.runrow-date { color: var(--ink-3); }
+
+/* ── processing ─────────────────────────────────────────────────────── */
+
+.runhead { margin-bottom: var(--sp-6); }
+
+.eyebrow-run {
+  font-size: 12px;
+  color: var(--teal);
+  margin-bottom: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.eyebrow-run::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eyebrow-run.live::before { animation: pulse 1.7s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+}
+
+.runhead h2 { font: 400 25px/1.25 var(--serif); letter-spacing: -.012em; }
+.runhead .muted { margin-top: 6px; font-size: 13px; }
+
+.stages { list-style: none; margin: 0; padding: 0; }
+
+.stage {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
+}
+
+.stage-mark {
+  justify-self: center;
+  align-self: center;
+  width: 9px; height: 9px;
+  border: 1px solid var(--rule-2);
+  border-radius: 50%;
+}
+
+.stage-label { font-size: 14px; }
+.stage-note { display: block; font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+.stage-count { font-size: 12.5px; color: var(--ink-3); }
+
+.stage.running { color: var(--ink); }
+.stage.running .stage-mark { border-color: var(--teal); background: var(--teal-wash); }
+.stage.running .stage-label { font-weight: 500; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage.running .stage-mark { animation: pulse 1.7s ease-in-out infinite; }
+}
+
+.stage.failed { color: var(--ink); }
+.stage.failed .stage-mark { border-color: var(--danger); background: var(--danger); }
+.stage.failed .stage-label { font-weight: 500; }
+
+.eyebrow-run.bad { color: var(--danger); }
+
+.stage.done { color: var(--ink-2); }
+.stage.done .stage-mark { border-color: var(--teal); background: var(--teal); }
+.stage.done .stage-note { color: var(--ink-2); }
+
+/* live clip log */
+
+.tick { margin-top: var(--sp-5); }
+
+.tick-log {
+  max-height: 220px;
+  overflow: auto;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.tickrow {
+  display: flex;
+  gap: var(--sp-3);
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.tickrow time { color: var(--ink-3); font-variant-numeric: tabular-nums; flex: none; }
+.tickrow.skip { color: var(--wheat); }
+
+.runfoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--sp-6);
+}
+
+.elapsed { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+/* failure */
+
+.failure {
+  margin-top: var(--sp-5);
+  padding: var(--sp-5);
+  background: var(--danger-wash);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: 3px;
+}
+
+.failure h3 { font: 500 17px/1.3 var(--serif); color: var(--danger); margin-bottom: var(--sp-2); }
+.failure p { font-size: 13.5px; max-width: 62ch; }
+.failure-hint { margin-top: var(--sp-3); color: var(--ink-2); }
+.failure-actions { display: flex; gap: var(--sp-3); margin-top: var(--sp-4); }
+
+.trace { margin-top: var(--sp-4); }
+.trace summary { font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+
+.trace pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--ink-2);
+}
+
+/* ── results ────────────────────────────────────────────────────────── */
+
+.results { display: block; }
+
+.resulthead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.resulthead h2 { font: 400 22px/1.2 var(--serif); letter-spacing: -.012em; }
+.resultmeta { margin-top: 5px; font-size: 12.5px; color: var(--ink-2); }
+.resultmeta a { color: var(--teal); }
+
+.resulthead-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.exportstatus { font-size: 11.5px; color: var(--ink-3); }
+
+/* the download control: one action, two flavours.
+   <details> rather than a scripted popover — the browser already owns the
+   open/close state and the keyboard behaviour, and the only thing the app
+   has to add is closing it again after a choice (app.js's wireExport). */
+.dropdown { position: relative; }
+
+.dropdown > summary {
+  display: inline-block;
+  list-style: none;      /* Firefox */
+  user-select: none;
+}
+.dropdown > summary::-webkit-details-marker { display: none; }
+.dropdown > summary::after {
+  content: '';
+  display: inline-block;
+  width: 5px; height: 5px;
+  margin-left: 9px;
+  vertical-align: 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+.dropdown[open] > summary::after { transform: rotate(-135deg); vertical-align: -1px; }
+
+.dropdown-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 230px;
+  padding: var(--sp-1);
+  background: var(--surface);
+  border: 1px solid var(--rule-2);
+  border-radius: 3px;
+  box-shadow: var(--shadow);
+}
+
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.dropdown-menu button:hover { background: var(--paper); }
+
+.dropdown-menu em {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+/* Busy: the summary is not a <button>, so `disabled` does nothing to it.
+   Blocking pointer events is what actually stops it re-opening mid-export,
+   and app.js closes it at the same time. */
+.dropdown.is-busy { pointer-events: none; opacity: .42; }
+
+/* the ribbon: the whole webinar on one axis */
+
+.ribbon {
+  padding: var(--sp-4) var(--sp-5) var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.ribbon-track {
+  position: relative;
+  height: 62px;
+  cursor: default;
+}
+
+.ribbon-axis {
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  height: 1px;
+  background: var(--rule-2);
+}
+
+.ribbon-tick {
+  position: absolute;
+  top: 50%;
+  width: 1px; height: 4px;
+  background: var(--rule-2);
+}
+
+.ribbon-time {
+  position: absolute;
+  top: calc(50% + 7px);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.ribbon-time.start { transform: none; }
+.ribbon-time.end { transform: translateX(-100%); }
+
+.mark {
+  position: absolute;
+  min-width: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+  background: var(--speaker, var(--teal));
+  opacity: .74;
+  transition: opacity .12s, transform .12s;
+}
+
+.mark:hover { opacity: 1; }
+
+.mark.up { bottom: 50%; height: 20px; margin-bottom: 3px; background: var(--wheat); }
+.mark.down { top: 50%; height: 13px; margin-top: 3px; }
+
+.mark.on { opacity: 1; outline: 1px solid var(--ink); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ribbon.enter .mark { animation: rise .34s cubic-bezier(.2, .7, .3, 1) backwards; }
+  @keyframes rise { from { transform: scaleY(0); } }
+  .mark.up { transform-origin: bottom; }
+  .mark.down { transform-origin: top; }
+}
+
+.ribbon-legend {
+  display: flex;
+  gap: var(--sp-5);
+  margin-top: var(--sp-2);
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.ribbon-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ribbon-legend i { width: 8px; height: 8px; border-radius: 1px; background: currentColor; }
+.legend-hi { color: var(--wheat); }
+
+/* desk */
+
+.desk {
+  display: grid;
+  grid-template-columns: var(--rail) 1fr;
+  align-items: start;
+}
+
+/* The page scrolls; the index stays put beside it, scrolling internally only
+   when the run has more clips than fit. */
+.index {
+  position: sticky;
+  top: var(--chrome-h);
+  max-height: calc(100vh - var(--chrome-h));
+  overflow: auto;
+  border-right: 1px solid var(--rule);
+  background: var(--surface);
+  padding-bottom: var(--sp-5);
+}
+
+.group-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.group-head span { font-weight: 400; color: var(--ink-3); }
+
+.item {
+  display: block;
+  width: 100%;
+  scroll-margin-top: 46px;   /* clears the sticky group header */
+  scroll-margin-bottom: 8px;
+  padding: 10px var(--sp-4) 10px 13px;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--rule);
+  color: inherit;
+  cursor: pointer;
+}
+
+.item:hover { background: var(--paper); }
+
+.item.on {
+  background: color-mix(in srgb, var(--speaker, var(--teal)) 8%, var(--raised));
+  border-left-color: var(--speaker, var(--teal));
+}
+
+.item.on .item-title { font-weight: 500; }
+.item-title { font-size: 13.5px; line-height: 1.35; }
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.item-meta .who { color: var(--speaker, var(--ink-2)); }
+.item-meta .tnum { color: var(--ink-3); }
+
+.flag {
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--wheat-wash);
+  color: var(--wheat);
+}
+
+.flag.warn { background: var(--danger-wash); color: var(--danger); }
+
+/* detail pane */
+
+.detail-inner { max-width: 780px; padding: var(--sp-5) var(--sp-6) var(--sp-7); }
+
+.clip-head { margin-bottom: var(--sp-4); }
+
+.clip-head h3 {
+  font: 400 24px/1.25 var(--serif);
+  letter-spacing: -.012em;
+  margin-bottom: 7px;
+}
+
+.clip-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.clip-facts .who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.clip-facts .who::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 1px;
+  background: var(--speaker, var(--teal));
+}
+
+.window-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.win-input {
+  width: 6.5em;
+  padding: 2px 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.win-input:hover { border-color: var(--rule-2); }
+
+.win-input:focus {
+  outline: none;
+  border-color: var(--teal);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 3px var(--teal-wash);
+}
+
+.win-dash { color: var(--ink-3); }
+
+.player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0B1412;
+  border-radius: 3px;
+  display: block;
+}
+
+.player-missing {
+  display: grid;
+  place-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  padding: var(--sp-5);
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--rule-2);
+  border-radius: 3px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.clip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.block { margin-top: var(--sp-5); }
+
+.block-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-bottom: 6px;
+  margin-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.block-head h4 { font-size: 12px; font-weight: 600; }
+
+.reason { font-size: 14.5px; line-height: 1.6; color: var(--ink); max-width: 66ch; }
+
+.caption-body {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.62;
+  max-width: 62ch;
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.tag { color: var(--teal); }
+
+/* documents */
+
+.doc { max-width: 68ch; }
+.doc h3 { font: 400 26px/1.22 var(--serif); letter-spacing: -.014em; margin-bottom: var(--sp-4); }
+.doc p { font: 400 16.5px/1.68 var(--serif); margin-bottom: var(--sp-4); }
+.doc p strong { font-weight: 600; }
+.doc-meta { font: 400 12.5px/1.4 var(--sans); color: var(--ink-3); margin-bottom: var(--sp-5); }
+
+/* placeholder / warnings */
+
+.notice {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--wheat-wash);
+  border-left: 2px solid var(--wheat);
+  border-radius: 0 2px 2px 0;
+}
+
+/* toast */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--sp-5);
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: var(--chrome-ink);
+  background: var(--chrome);
+  border-radius: 3px;
+  box-shadow: var(--shadow);
+}
+
+.toast[hidden] { display: none; }
+
+/* ── narrow ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .launch { flex-direction: column; align-items: stretch; }
+  .launch-go { justify-content: flex-end; }
+  .launch-block { text-align: left; max-width: none; }
+  .desk { grid-template-columns: 1fr; }
+  .index {
+    position: static;
+    max-height: 340px;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .detail-inner { padding: var(--sp-5) var(--sp-4) var(--sp-6); }
+  .org { display: none; }
+  .tool { border-left: 0; padding-left: 0; }
+  .slot { max-height: 46vh; }
+}
+
+@media (max-width: 620px) {
+  .runrow { grid-template-columns: 1fr auto; row-gap: 4px; }
+  .resulthead { flex-direction: column; align-items: stretch; }
+}

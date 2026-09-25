@@ -1,0 +1,18 @@
+{
+  "name": "Video Highlights — GF PBP",
+  "short_name": "Video Highlights",
+  "description": "Turns a recorded webinar into review-ready one-pagers, highlight clips and per-panelist clips, entirely in the browser.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F4F0",
+  "theme_color": "#14231F",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
