@@ -85,9 +85,12 @@ export function wrapLines(measure, text, maxWidth, maxLines = 2) {
  *  result is watched on a phone at 2-3x that, so the size is set as a
  *  fraction of the frame rather than in absolute pixels. */
 export function metrics(width, height) {
-  // 0.072 rather than 0.075: one pixel smaller on a 360p master (26 vs 27),
-  // which is what it was tuned against by eye.
-  const font = Math.max(16, Math.round(height * 0.072));
+  // Tuned down twice by eye: 0.075 -> 0.072 -> 0.055. On a 360p master that
+  // is 27 -> 26 -> 20px. The earlier values read as oversized once burned in
+  // and scaled up on a phone; ~5.5% of frame height is roughly where social
+  // captions sit. The 16px floor is legibility, not taste — below a ~290px
+  // frame the fraction would go under it.
+  const font = Math.max(16, Math.round(height * 0.055));
   return {
     font,
     // "Bold white, heavy — but not too much outline." A stroke at ~12% of the
@@ -96,10 +99,12 @@ export function metrics(width, height) {
     stroke: Math.max(2, font * 0.12),
     lineHeight: Math.round(font * 1.22),
     maxWidth: width * 0.86,
-    // Lower centre, and lower than it first shipped (0.88): sat too high in
-    // frame against the speaker. At 0.91 the descenders of the last line
-    // land around 93% of the height, which still clears a player's chrome.
-    baseline: Math.round(height * 0.91),
+    // Lowered twice as well: 0.88 -> 0.91 -> 0.94. With the smaller type the
+    // last line's descenders now land around 95% of frame height, so there
+    // is still a margin, but this is close to the floor — these clips are
+    // 16:9, and a vertical crop for Reels/TikTok would put platform UI over
+    // the bottom of the frame and start hiding text.
+    baseline: Math.round(height * 0.94),
   };
 }
 
