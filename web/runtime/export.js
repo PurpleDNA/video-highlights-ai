@@ -61,7 +61,7 @@
 import { OUTPUT_DIR, TRANSCRIPT_OFFSET_SEC } from './config.js';
 import { getFile, writeBlob, readText, writeText, transcriptPath } from './fsroot.js';
 import { parse } from './transcript.js';
-import { cuesForWindow } from './subtitles.js';
+import { cuesForWindow, toSrt } from './subtitles.js';
 import { readRun } from './manifest.js';
 import { zipRun } from './zip.js';
 
@@ -198,19 +198,21 @@ async function cutOnWorker(file, startSec, endSec, subtitles) {
  * produced a video for — freshly cut, or read back from the mirror when
  * already there — for zip.js to fold straight into an archive without ever
  * needing OPFS to hold a copy itself. */
-export async function encodeApprovedClips(root, slugName, master, emit = () => {}, { mirrorRoot = null, subtitles = false } = {}) {
+export async function encodeApprovedClips(root, slugName, master, emit = () => {}, {
+  mirrorRoot = null, subtitles = false, srt = false,
+} = {}) {
   const run = await readRun(root, slugName);
   const clips = flattenClips(run);
 
   // Read the transcript once for the export, not once per clip: it is the same
   // file each time and a clip only needs the cues overlapping its own window.
   let allCues = null;
-  if (subtitles) {
+  if (subtitles || srt) {
     const raw = await readText(root, transcriptPath(run.name));
     allCues = raw ? parse(raw) : null;
     if (!allCues || !allCues.length) {
       emit({ type: 'note', level: 'warn',
-        message: 'No transcript on disk for this run — cutting without subtitles.' });
+        message: 'No transcript on disk for this run — exporting without subtitles.' });
     }
   }
   // One mode for the whole export: `subtitles` is a single choice per run
@@ -231,14 +233,22 @@ export async function encodeApprovedClips(root, slugName, master, emit = () => {
       type: 'stage', key: 'export', status: 'done', label: 'Encoding clips',
       detail: 'no approved clips',
     });
-    return { encoded: 0, skipped: [], blobs: new Map() };
+    return { encoded: 0, skipped: [], blobs: new Map(), srts: new Map() };
   }
 
   let done = 0;
   const skipped = [];
   const blobs = new Map();
+  // clip.id -> SRT text. Made for every clip with a window, whether or not
+  // its video cuts: it is text from the transcript, needs no master, and is
+  // the very file a reviewer wants to correct.
+  const srts = new Map();
 
   for (const clip of clips) {
+    if (srt && allCues && allCues.length && clip.start_sec != null && clip.end_sec != null) {
+      srts.set(clip.id, toSrt(cuesForWindow(allCues, clip.start_sec, clip.end_sec)));
+    }
+
     const relPath = `${OUTPUT_DIR}/${slugName}/${clip.id}.mp4`;
     const capPath = `${OUTPUT_DIR}/${slugName}/${clip.caption_file}`;
 
@@ -350,7 +360,7 @@ export async function encodeApprovedClips(root, slugName, master, emit = () => {
     detail: `${done} of ${total}` + (skipped.length ? ` · ${skipped.length} skipped` : ''),
   });
 
-  return { encoded: done, skipped, blobs };
+  return { encoded: done, skipped, blobs, srts };
 }
 
 /** The one entry point the UI calls. Export's default destination is now a
@@ -378,16 +388,22 @@ export async function encodeApprovedClips(root, slugName, master, emit = () => {
  *  time for a markdown-only bundle. `emit`, if given, sees the same per-clip
  *  events `encodeApprovedClips` documents above; zipping itself has no
  *  comparable per-file progress to report (fflate's `zipSync` is
- *  synchronous). */
+ *  synchronous).
+ *
+ *  `subtitles` burns cues into the pixels; `srt` instead leaves the video
+ *  clean and adds a `<clip>.srt` beside each one in the zip (see
+ *  subtitles.js's toSrt) — the editable route, for fixing names and
+ *  spelling before remuxing. The UI asks for one or the other. */
 export async function exportRun(root, slugName, {
   scope = 'all', toFolder = false, master = null, mirrorRoot = null, emit = () => {},
-  subtitles = false,
+  subtitles = false, srt = false,
 } = {}) {
   let blobs = new Map();
+  let srts = new Map();
   if (scope !== 'text') {
-    ({ blobs } = await encodeApprovedClips(root, slugName, master, emit, { mirrorRoot, subtitles }));
+    ({ blobs, srts } = await encodeApprovedClips(root, slugName, master, emit, { mirrorRoot, subtitles, srt }));
   }
   if (toFolder) return undefined;
-  const { blob } = await zipRun(root, slugName, scope, blobs);
+  const { blob } = await zipRun(root, slugName, scope, blobs, srts);
   return blob;
 }

@@ -47,6 +47,31 @@ export function cuesForWindow(cues, startSec, endSec) {
   return out;
 }
 
+/** Seconds -> SRT's `HH:MM:SS,mmm`. */
+export function srtTime(seconds) {
+  const ms = Math.max(0, Math.round(seconds * 1000));
+  const pad = (n, w = 2) => String(n).padStart(w, '0');
+  return `${pad(Math.floor(ms / 3600000))}:${pad(Math.floor(ms / 60000) % 60)}:`
+    + `${pad(Math.floor(ms / 1000) % 60)},${pad(ms % 1000, 3)}`;
+}
+
+/** cuesForWindow()'s entries as an SRT file — the same cues, on the same
+ *  clock, that a burned-in export draws, so the two downloads can never
+ *  disagree. This is the editable alternative: transcription gets speaker
+ *  names and British/American spelling wrong, which can't be fixed once
+ *  burned into pixels but can be in a sidecar before it's remuxed (e.g.
+ *  mkvtoolnix, HandBrake). One line per cue, unwrapped — the editor and the
+ *  player each wrap to their own width. CRLF, the format's historical line
+ *  ending, which every tool reads. */
+export function toSrt(entries) {
+  return entries.map((e, i) => [
+    String(i + 1),
+    `${srtTime(e.start)} --> ${srtTime(e.end)}`,
+    e.text,
+    '',
+  ].join('\r\n')).join('\r\n');
+}
+
 /** The cue covering `t` seconds into the clip, or null. Linear because a clip
  *  holds a few dozen cues at most and the caller asks once per frame. */
 export function cueAt(entries, t) {

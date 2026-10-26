@@ -17,8 +17,15 @@ export function clock(seconds) {
 /** 83 -> "1m 23s" — for lengths, where a clock reads as a position. */
 export function length(seconds) {
   if (seconds == null) return '';
-  const s = Math.round(seconds);
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
+  // To a tenth, shown only when there is one: clip windows move in half
+  // seconds, and a nudge that didn't visibly change the length would read
+  // as a nudge that didn't happen.
+  const tenths = Math.round(seconds * 10);
+  const whole = Math.floor(tenths / 10);
+  const frac = tenths % 10 ? `.${tenths % 10}` : '';
+  return whole < 60
+    ? `${whole}${frac}s`
+    : `${Math.floor(whole / 60)}m ${String(whole % 60).padStart(2, '0')}${frac}s`;
 }
 
 export function bytes(n) {

@@ -101,3 +101,15 @@ test('rewriteWindow does not corrupt body text when header window is unparseable
   // The result should have the speaker line still
   assert.ok(result.includes('**Speaker:** Taylor Quinn'));
 });
+
+test('a window with half seconds reads back exactly', () => {
+  const text = captionText({ ...SEG, start: '01:00:41.5', end: '01:04:11.5' }, 'Body.');
+  assert.deepEqual(captionWindow(text), { start: '01:00:41.5', end: '01:04:11.5' });
+});
+
+test('rewriteWindow can move a whole-second window onto half seconds and back', () => {
+  const half = rewriteWindow(captionText(SEG, 'Body.'), '01:00:41.5', '01:04:12.5');
+  assert.deepEqual(captionWindow(half), { start: '01:00:41.5', end: '01:04:12.5' });
+  const whole = rewriteWindow(half, '01:00:41', '01:04:11');
+  assert.equal(whole, captionText(SEG, 'Body.'));
+});

@@ -322,7 +322,7 @@ export async function runPipeline({
       emit({ type: 'note', level: 'info', message: 'Extracting audio from the recording…' });
       const audioBlob = await extractAudio(masterFile, null, signal);
       checkCancelled(signal);
-      const { text, words, warning } = await transcribe(audioBlob, transcriptionKey, {
+      const { text, words } = await transcribe(audioBlob, transcriptionKey, {
         signal,
         // 'upload' and 'transcribing' are the only phases worth a note here —
         // 'done' fires an instant before this whole branch returns anyway,
@@ -338,7 +338,6 @@ export async function runPipeline({
           }
         },
       });
-      if (warning) emit({ type: 'note', level: 'warn', message: warning });
       effectiveTranscript = text;
       // Persist the word timings beside the transcript. They are the only
       // source of sentence-end times in the pipeline (snap.js explains why

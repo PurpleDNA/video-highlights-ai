@@ -135,10 +135,13 @@ export async function cut(file, startSec, endSec, onProgress, subtitles = null) 
 
   const lastOf = (arr, tl) => (arr.length ? arr[arr.length - 1].cts / tl : -1);
   pos = seek.offset;
+  // Sequential, not appendBuffer()'s "next position": with moov at the end
+  // of the file that value jumps to EOF after the first chunk — see the same
+  // loop in audio.js for the measured failure.
   while (pos < size) {
-    const buf = await readRange(file, pos, Math.min(pos + CHUNK, size));
-    const next = mp4.appendBuffer(buf);
-    pos = (typeof next === 'number' && next > pos) ? next : pos + buf.byteLength;
+    const end = Math.min(pos + CHUNK, size);
+    mp4.appendBuffer(await readRange(file, pos, end));
+    pos = end;
     const vDone = lastOf(vSamples, vInfo.timescale) >= endSec;
     const aDone = !aInfo || lastOf(aSamples, aInfo.timescale) >= endSec;
     if (vDone && aDone) break;

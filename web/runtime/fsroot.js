@@ -109,6 +109,19 @@ export async function exists(root, path) {
   return (await getFile(root, path)) !== null;
 }
 
+/** Remove a file or a whole directory tree below the root. A path that is
+ *  already gone is not an error — the end state is the same. */
+export async function remove(root, path) {
+  const parts = path.split('/').filter(Boolean);
+  const name = parts.pop();
+  try {
+    const parent = await dir(root, parts.join('/'));
+    await parent.removeEntry(name, { recursive: true });
+  } catch (e) {
+    if (e.name !== 'NotFoundError') throw e;
+  }
+}
+
 /** Entries of a directory; [] if it is not there. */
 export async function listDir(root, path) {
   let h;

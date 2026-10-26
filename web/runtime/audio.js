@@ -150,11 +150,19 @@ export async function extractAudio(file, onProgress, signal) {
   // The demux phase (this loop) is the bulk of the *reading*, but not of the
   // wall-clock time — like cut.js, the transcode dominates. Weight the demux
   // sweep into [0.05, 0.15] accordingly.
+  //
+  // Read straight through, ignoring appendBuffer()'s "next position" — it is
+  // only trustworthy in the moov phase above, where skipping mdat is the
+  // point. With moov at the *end* of the file (Zoom/OBS masters that were
+  // never faststart-ed), mp4box still holds that moov buffer, and after the
+  // first chunk of samples it reports the end of the file as next: honouring
+  // it skipped all but ~25s of a 96-minute recording, so AssemblyAI only
+  // ever heard the opening. Every byte of mdat is wanted here anyway.
   while (pos < size) {
     throwIfAborted(signal);
-    const buf = await readRange(file, pos, Math.min(pos + CHUNK, size));
-    const next = mp4.appendBuffer(buf);
-    pos = (typeof next === 'number' && next > pos) ? next : pos + buf.byteLength;
+    const end = Math.min(pos + CHUNK, size);
+    mp4.appendBuffer(await readRange(file, pos, end));
+    pos = end;
     progress(0.05 + 0.1 * clamp01(pos / size));
   }
   mp4.stop();

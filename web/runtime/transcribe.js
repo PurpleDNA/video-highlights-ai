@@ -8,10 +8,9 @@
  *                             returns { upload_url }.
  *   2. POST /v2/transcript  — { audio_url, speaker_labels: true }, returns { id }.
  *   3. GET  /v2/transcript/<id> — polled until status is 'completed' or 'error'.
- * Then DELETE /v2/transcript/<id> once the cues are extracted, so the
- * recording doesn't sit on AssemblyAI's servers longer than it has to. A
- * failed delete must not fail the transcription — see deleteTranscript()
- * below, whose failure comes back as a warning string, not a thrown error.
+ * There is no DELETE afterwards: it used to try one, it failed often enough
+ * ("Failed to fetch") to be noise on every run, and leaving the transcript
+ * on AssemblyAI's servers until it expires is acceptable for this tool.
  *
  * THE MAPPING — proven against a real 83-minute panel webinar (see
  * spike/assemblyai.html and spike/assemblyai-full.json). The response's
@@ -154,31 +153,9 @@ async function pollTranscript(id, apiKey, signal) {
   }
 }
 
-/** Best-effort cleanup: delete the transcript from AssemblyAI's servers now
- *  that the cues are extracted. Never throws — a failed delete is a warning
- *  for the reviewer, not a reason to fail a transcription that already
- *  succeeded. Returns a warning string, or null when the delete succeeded. */
-async function deleteTranscript(id, apiKey) {
-  try {
-    const res = await fetch(`${API}/transcript/${id}`, {
-      method: 'DELETE',
-      headers: { authorization: apiKey },
-    });
-    if (!res.ok) {
-      return `Could not delete the transcript from AssemblyAI (${res.status}) — `
-        + 'it may remain on their servers until it expires.';
-    }
-  } catch (err) {
-    return `Could not delete the transcript from AssemblyAI (${err.message}) — `
-      + 'it may remain on their servers until it expires.';
-  }
-  return null;
-}
-
-/** Transcribe `blob` via AssemblyAI and return `{ text, warning }`, where
+/** Transcribe `blob` via AssemblyAI and return `{ text, words }`, where
  *  `text` is `[HH:MM:SS] SPEAKER: text` cues (parses with transcript.js's
- *  parse()) and `warning` is a reviewer-facing string when the post-transcribe
- *  delete failed, or null.
+ *  parse()) and `words` is AssemblyAI's own word timings.
  *
  *  `onProgress`, if given, is called with one of 'upload', 'transcribing',
  *  'done'. `signal`, if given, is honoured both during the upload and the
@@ -196,12 +173,11 @@ export async function transcribe(blob, apiKey, { onProgress, signal } = {}) {
   const words = data.words || [];
   const cues = wordsToCues(words);
   const text = cuesToText(cues);
-  const warning = await deleteTranscript(id, apiKey);
 
   onProgress?.('done');
   // `words` rides along rather than being dropped: it is the only source of
   // sentence-END times anywhere in the pipeline (see snap.js), and it is
   // data we have already paid for. runner.js persists it next to the
   // transcript; nothing else here keeps a reference.
-  return { text, words, warning };
+  return { text, words };
 }

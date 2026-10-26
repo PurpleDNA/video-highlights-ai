@@ -1,245 +1,385 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Video Highlights · GF PBP</title>
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="icon" href="./icon.svg" type="image/svg+xml">
-<meta name="theme-color" content="#191521">
-<link rel="stylesheet" href="./styles.css">
-</head>
-<body>
-
-<header class="chrome">
-  <div class="chrome-mark">
-    <span class="org">Global Forum for Plant-Based and Alternative Proteins</span>
-    <h1 class="tool">Video Highlights</h1>
-  </div>
-  <div class="chrome-right">
-    <nav class="crumbs" id="crumbs" hidden>
-      <button class="linkish" data-go="input">New run</button>
-    </nav>
-    <div class="env" id="env"></div>
-    <a class="icon-btn" id="gear" href="#/settings" aria-label="Settings" title="Settings">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-        <path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.94 3.5-1.7-.3a7.1 7.1 0 0 0-.5-1.2l1-1.4a.9.9 0 0 0-.1-1.1l-1.1-1.1a.9.9 0 0 0-1.1-.1l-1.4 1a7.1 7.1 0 0 0-1.2-.5l-.3-1.7a.9.9 0 0 0-.9-.7h-1.6a.9.9 0 0 0-.9.7l-.3 1.7c-.42.13-.83.3-1.2.5l-1.4-1a.9.9 0 0 0-1.1.1L4.96 7.5a.9.9 0 0 0-.1 1.1l1 1.4c-.2.37-.37.78-.5 1.2l-1.7.3a.9.9 0 0 0-.7.9v1.6a.9.9 0 0 0 .7.9l1.7.3c.13.42.3.83.5 1.2l-1 1.4a.9.9 0 0 0 .1 1.1l1.1 1.1a.9.9 0 0 0 1.1.1l1.4-1c.37.2.78.37 1.2.5l.3 1.7a.9.9 0 0 0 .9.7h1.6a.9.9 0 0 0 .9-.7l.3-1.7c.42-.13.83-.3 1.2-.5l1.4 1a.9.9 0 0 0 1.1-.1l1.1-1.1a.9.9 0 0 0 .1-1.1l-1-1.4c.2-.37.37-.78.5-1.2l1.7-.3a.9.9 0 0 0 .7-.9v-1.6a.9.9 0 0 0-.7-.9Z"/>
-      </svg>
-    </a>
-    <span class="made-by">
-      <img src="./purple-dna.jpg" alt="" width="26" height="26" decoding="async">
-      <span class="made-by-text">Made by <b>PurpleDNA</b></span>
-    </span>
-  </div>
-</header>
-
-<main id="main">
-
-  <!-- ── Input ─────────────────────────────────────────────────────── -->
-  <section class="view shell-dark" id="view-input">
-    <div class="col">
-
-      <div class="hero">
-        <div class="hero-copy">
-          <h2 class="hero-title">Drop in a webinar.<br>Get clips back.</h2>
-          <p class="hero-sub">Highlights, a cut for each panelist, and a one-pager —
-             drafted from the recording, ready for you to review.</p>
-        </div>
-
-        <label class="slot" id="slot">
-          <input type="file" id="recording" accept="video/mp4,video/*" class="sr-only">
-          <div class="slot-empty" id="slot-empty">
-            <svg class="slot-icon" viewBox="0 0 24 24" width="36" height="36" aria-hidden="true" focusable="false">
-              <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
-                d="M12 4v11m0 0-3.5-3.5M12 15l3.5-3.5M5 16.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5"/>
-            </svg>
-            <p class="slot-prompt">Drop the recording here</p>
-            <p class="slot-hint">or click to choose an .mp4 — nothing leaves this browser</p>
-          </div>
-          <div class="slot-filled" id="slot-filled" hidden>
-            <canvas class="slot-poster" id="rec-poster" aria-label="A frame from the chosen recording"></canvas>
-          </div>
-        </label>
-        <p class="slot-caption" id="rec-caption" hidden></p>
-        <p class="fileerror" id="fileerror" hidden></p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Video Highlights · GF PBP</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#191521" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="chrome">
+      <div class="chrome-mark">
+        <span class="org"
+          >Global Forum for Plant-Based and Alternative Proteins</span
+        >
+        <h1 class="tool">Video Highlights</h1>
       </div>
+      <div class="chrome-right">
+        <nav class="crumbs" id="crumbs" hidden>
+          <button class="linkish" data-go="input">New run</button>
+        </nav>
+        <div class="env" id="env"></div>
+        <a
+          class="icon-btn"
+          id="gear"
+          href="#/settings"
+          aria-label="Settings"
+          title="Settings"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              fill="currentColor"
+              d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.94 3.5-1.7-.3a7.1 7.1 0 0 0-.5-1.2l1-1.4a.9.9 0 0 0-.1-1.1l-1.1-1.1a.9.9 0 0 0-1.1-.1l-1.4 1a7.1 7.1 0 0 0-1.2-.5l-.3-1.7a.9.9 0 0 0-.9-.7h-1.6a.9.9 0 0 0-.9.7l-.3 1.7c-.42.13-.83.3-1.2.5l-1.4-1a.9.9 0 0 0-1.1.1L4.96 7.5a.9.9 0 0 0-.1 1.1l1 1.4c-.2.37-.37.78-.5 1.2l-1.7.3a.9.9 0 0 0-.7.9v1.6a.9.9 0 0 0 .7.9l1.7.3c.13.42.3.83.5 1.2l-1 1.4a.9.9 0 0 0 .1 1.1l1.1 1.1a.9.9 0 0 0 1.1.1l1.4-1c.37.2.78.37 1.2.5l.3 1.7a.9.9 0 0 0 .9.7h1.6a.9.9 0 0 0 .9-.7l.3-1.7c.42-.13.83-.3 1.2-.5l1.4 1a.9.9 0 0 0 1.1-.1l1.1-1.1a.9.9 0 0 0 .1-1.1l-1-1.4c.2-.37.37-.78.5-1.2l1.7-.3a.9.9 0 0 0 .7-.9v-1.6a.9.9 0 0 0-.7-.9Z"
+            />
+          </svg>
+        </a>
+        <span class="made-by">
+          <img
+            src="./purple-dna.jpg"
+            alt=""
+            width="26"
+            height="26"
+            decoding="async"
+          />
+          <span class="made-by-text">Made by <b>PurpleDNA</b></span>
+        </span>
+      </div>
+    </header>
 
-      <div class="launch">
-        <div class="launch-what">
-          <p id="launch-summary">Reads the recording, drafts a one-pager, and writes
-             a caption and time window for each clip worth cutting.</p>
-          <details class="settings" id="run-settings">
-            <summary>Run settings</summary>
-            <div class="settings-body">
-              <label class="mini">
-                <span>Highlight clips</span>
-                <input type="number" id="segments" min="1" max="12" step="1">
-              </label>
-              <label class="mini">
-                <span>Clips per panelist</span>
-                <input type="number" id="perpanelist" min="1" max="6" step="1">
-              </label>
+    <main id="main">
+      <!-- ── Input ─────────────────────────────────────────────────────── -->
+      <section class="view shell-dark" id="view-input">
+        <div class="col">
+          <div class="hero">
+            <div class="hero-copy">
+              <h2 class="hero-title">
+                Drop in a webinar.<br />Get clips back.
+              </h2>
+              <p class="hero-sub">
+                Highlights, a cut for each panelist, and a one-pager — drafted
+                from the recording, ready for you to review.
+              </p>
             </div>
-          </details>
-        </div>
-        <div class="launch-go">
-          <p class="launch-block" id="launch-block" hidden></p>
-          <button class="primary" id="run" disabled>Make the clips</button>
-        </div>
-      </div>
 
-      <section class="earlier" id="earlier" hidden>
-        <div class="section-head"><h3>Earlier runs</h3><span id="earlier-count"></span></div>
-        <div class="runlist" id="runlist"></div>
+            <label class="slot" id="slot">
+              <input
+                type="file"
+                id="recording"
+                accept="video/mp4,video/*"
+                class="sr-only"
+              />
+              <div class="slot-empty" id="slot-empty">
+                <svg
+                  class="slot-icon"
+                  viewBox="0 0 24 24"
+                  width="36"
+                  height="36"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 4v11m0 0-3.5-3.5M12 15l3.5-3.5M5 16.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5"
+                  />
+                </svg>
+                <p class="slot-prompt">Drop the recording here</p>
+                <p class="slot-hint">
+                  or click to choose an .mp4 — nothing leaves this browser
+                </p>
+              </div>
+              <div class="slot-filled" id="slot-filled" hidden>
+                <canvas
+                  class="slot-poster"
+                  id="rec-poster"
+                  aria-label="A frame from the chosen recording"
+                ></canvas>
+              </div>
+            </label>
+            <!-- Outside the <label> on purpose: a button inside it would also
+             open the file picker. -->
+            <div class="slot-meta" id="slot-meta" hidden>
+              <p class="slot-caption" id="rec-caption"></p>
+              <button
+                type="button"
+                class="linkish"
+                id="clear-recording"
+                title="Clear this from the screen — it stays loaded for this session"
+              >
+                Clear
+              </button>
+            </div>
+            <label class="field rename" id="rename" hidden>
+              <span class="field-label">Webinar name</span>
+              <input
+                type="text"
+                id="rec-name"
+                autocomplete="off"
+                spellcheck="false"
+                maxlength="160"
+              />
+              <span class="field-help"
+                >Taken from the file name — change it before making the clips.
+                The run's folder and downloads are named after it.</span
+              >
+            </label>
+            <p class="fileerror" id="fileerror" hidden></p>
+          </div>
+
+          <div class="launch">
+            <div class="launch-what">
+              <p id="launch-summary">
+                Reads the recording, drafts a one-pager, and writes a caption
+                and time window for each clip worth cutting.
+              </p>
+              <details class="settings" id="run-settings">
+                <summary>Run settings</summary>
+                <div class="settings-body">
+                  <label class="mini">
+                    <span>Highlight clips</span>
+                    <input
+                      type="number"
+                      id="segments"
+                      min="1"
+                      max="12"
+                      step="1"
+                    />
+                  </label>
+                  <label class="mini">
+                    <span>Clips per panelist</span>
+                    <input
+                      type="number"
+                      id="perpanelist"
+                      min="1"
+                      max="6"
+                      step="1"
+                    />
+                  </label>
+                </div>
+              </details>
+            </div>
+            <div class="launch-go">
+              <p class="launch-block" id="launch-block" hidden></p>
+              <button class="primary" id="run" disabled>Make the clips</button>
+            </div>
+          </div>
+
+          <section class="earlier" id="earlier" hidden>
+            <div class="section-head">
+              <h3>Earlier runs</h3>
+              <span id="earlier-count"></span>
+            </div>
+            <input
+              type="search"
+              class="runsearch"
+              id="runsearch"
+              placeholder="Search runs by name"
+              autocomplete="off"
+              aria-label="Search runs"
+              hidden
+            />
+            <div class="runlist" id="runlist"></div>
+            <p class="runlist-empty" id="runlist-empty" hidden>
+              No runs match that search.
+            </p>
+            <button
+              type="button"
+              class="linkish runlist-more"
+              id="runs-more"
+              hidden
+            ></button>
+          </section>
+        </div>
       </section>
 
-    </div>
-  </section>
+      <!-- ── Settings ──────────────────────────────────────────────────── -->
+      <section class="view shell-dark" id="view-settings" hidden>
+        <div class="col narrow">
+          <div class="intro">
+            <h2>Settings</h2>
+            <p>Saved once in this browser, used on every run.</p>
+          </div>
 
-  <!-- ── Settings ──────────────────────────────────────────────────── -->
-  <section class="view shell-dark" id="view-settings" hidden>
-    <div class="col narrow">
-
-      <div class="intro">
-        <h2>Settings</h2>
-        <p>Saved once in this browser, used on every run.</p>
-      </div>
-
-      <div class="settings-stack">
-        <div class="console">
-          <div class="console-pane">
-            <div class="pane-head">
-              <h3>Anthropic</h3>
-              <span class="pane-note">writes the one-pager, clip selection and captions</span>
+          <div class="settings-stack">
+            <div class="console">
+              <div class="console-pane">
+                <div class="pane-head">
+                  <h3>Anthropic</h3>
+                  <span class="pane-note"
+                    >writes the one-pager, clip selection and captions</span
+                  >
+                </div>
+                <label class="field">
+                  <span class="field-label">Anthropic API key</span>
+                  <input
+                    type="password"
+                    id="s-apikey"
+                    placeholder="sk-ant-…"
+                    autocomplete="off"
+                  />
+                  <span class="field-help" id="s-apikey-help"></span>
+                </label>
+              </div>
             </div>
-            <label class="field">
-              <span class="field-label">Anthropic API key</span>
-              <input type="password" id="s-apikey" placeholder="sk-ant-…" autocomplete="off">
-              <span class="field-help" id="s-apikey-help"></span>
-            </label>
+
+            <div class="console">
+              <div class="console-pane">
+                <div class="pane-head">
+                  <h3>AssemblyAI</h3>
+                  <span class="pane-note"
+                    >transcribes the recording, with speaker labels</span
+                  >
+                </div>
+                <label class="field">
+                  <span class="field-label">AssemblyAI API key</span>
+                  <input
+                    type="password"
+                    id="s-transcriptionkey"
+                    placeholder="Required to run"
+                    autocomplete="off"
+                  />
+                  <span class="field-help" id="s-transcriptionkey-help"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="console">
+              <div class="console-pane">
+                <div class="pane-head">
+                  <h3>Folder mirror</h3>
+                  <span class="pane-note">optional</span>
+                </div>
+                <div class="folderpick">
+                  <button class="ghost" type="button" id="pickmirror">
+                    Also save exports to a folder…
+                  </button>
+                  <p class="filemeta" id="mirrormeta">
+                    Optional — not attached.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div class="console">
-          <div class="console-pane">
-            <div class="pane-head">
-              <h3>AssemblyAI</h3>
-              <span class="pane-note">transcribes the recording, with speaker labels</span>
+      <!-- ── Processing ────────────────────────────────────────────────── -->
+      <section class="view shell-dark" id="view-run" hidden>
+        <div class="col narrow">
+          <div class="runhead">
+            <p class="eyebrow-run" id="run-state">Processing</p>
+            <h2 id="run-title"></h2>
+            <p class="muted" id="run-sub"></p>
+          </div>
+
+          <ol class="stages" id="stages"></ol>
+
+          <div class="tick" id="tick" hidden>
+            <div class="tick-log" id="ticklog"></div>
+          </div>
+
+          <div class="failure" id="failure" hidden>
+            <h3 id="failure-title">The run stopped</h3>
+            <p id="failure-message"></p>
+            <p class="failure-hint" id="failure-hint" hidden></p>
+            <div class="failure-actions">
+              <button class="primary" data-go="input">Back to inputs</button>
+              <button class="ghost" id="retry" hidden>Run it again</button>
             </div>
-            <label class="field">
-              <span class="field-label">AssemblyAI API key</span>
-              <input type="password" id="s-transcriptionkey" placeholder="Required to run" autocomplete="off">
-              <span class="field-help" id="s-transcriptionkey-help"></span>
-            </label>
+            <details class="trace" id="trace" hidden>
+              <summary>Technical detail</summary>
+              <pre id="tracebody"></pre>
+            </details>
+          </div>
+
+          <div class="runfoot" id="runfoot">
+            <span class="elapsed" id="elapsed">0:00</span>
+            <button class="ghost" id="stop">Stop run</button>
           </div>
         </div>
+      </section>
 
-        <div class="console">
-          <div class="console-pane">
-            <div class="pane-head">
-              <h3>Folder mirror</h3>
-              <span class="pane-note">optional</span>
-            </div>
-            <div class="folderpick">
-              <button class="ghost" type="button" id="pickmirror">Also save exports to a folder…</button>
-              <p class="filemeta" id="mirrormeta">Optional — not attached.</p>
-            </div>
+      <!-- ── Results ───────────────────────────────────────────────────── -->
+      <section class="view results" id="view-results" hidden>
+        <div class="resulthead">
+          <div class="resulthead-id">
+            <h2 id="r-title"></h2>
+            <p class="resultmeta" id="r-meta"></p>
           </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ── Processing ────────────────────────────────────────────────── -->
-  <section class="view shell-dark" id="view-run" hidden>
-    <div class="col narrow">
-      <div class="runhead">
-        <p class="eyebrow-run" id="run-state">Processing</p>
-        <h2 id="run-title"></h2>
-        <p class="muted" id="run-sub"></p>
-      </div>
-
-      <ol class="stages" id="stages"></ol>
-
-      <div class="tick" id="tick" hidden>
-        <div class="tick-log" id="ticklog"></div>
-      </div>
-
-      <div class="failure" id="failure" hidden>
-        <h3 id="failure-title">The run stopped</h3>
-        <p id="failure-message"></p>
-        <p class="failure-hint" id="failure-hint" hidden></p>
-        <div class="failure-actions">
-          <button class="primary" data-go="input">Back to inputs</button>
-          <button class="ghost" id="retry" hidden>Run it again</button>
-        </div>
-        <details class="trace" id="trace" hidden>
-          <summary>Technical detail</summary>
-          <pre id="tracebody"></pre>
-        </details>
-      </div>
-
-      <div class="runfoot" id="runfoot">
-        <span class="elapsed" id="elapsed">0:00</span>
-        <button class="ghost" id="stop">Stop run</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Results ───────────────────────────────────────────────────── -->
-  <section class="view results" id="view-results" hidden>
-
-    <div class="resulthead">
-      <div class="resulthead-id">
-        <h2 id="r-title"></h2>
-        <p class="resultmeta" id="r-meta"></p>
-      </div>
-      <div class="resulthead-actions" id="export-actions">
-        <span class="exportstatus" id="export-status"></span>
-        <!-- Shown only while a folder mirror is attached (settings.js's
+          <div class="resulthead-actions" id="export-actions">
+            <span class="exportstatus" id="export-status"></span>
+            <!-- Shown only while a folder mirror is attached (settings.js's
              renderMirrorMeta) — with none it writes nowhere. -->
-        <button class="ghost" data-export-folder data-subtitles="1" hidden
-                title="Also writes the cut clips, with subtitles, into the attached folder">Cut clips to folder</button>
-        <details class="dropdown" id="download-menu">
-          <summary class="primary">Download zip folder</summary>
-          <div class="dropdown-menu" role="menu">
-            <button role="menuitem" data-export-zip="all" data-subtitles="1">
-              With subtitles<em>Burned in — for social</em>
+            <button
+              class="ghost"
+              data-export-folder
+              data-subtitles="1"
+              hidden
+              title="Also writes the cut clips, with subtitles, into the attached folder"
+            >
+              Cut clips to folder
             </button>
-            <button role="menuitem" data-export-zip="all" data-subtitles="0">
-              Without subtitles<em>Clean video</em>
-            </button>
+            <details class="dropdown" id="download-menu">
+              <summary class="primary">Download zip folder</summary>
+              <div class="dropdown-menu" role="menu">
+                <button
+                  role="menuitem"
+                  data-export-zip="all"
+                  data-subtitles="1"
+                >
+                  Ready to post<em
+                    >Subtitles burned into the video — for social</em
+                  >
+                </button>
+                <button
+                  role="menuitem"
+                  data-export-zip="all"
+                  data-subtitles="0"
+                  data-srt="1"
+                >
+                  Editable subtitles<em>Clean video + an .srt per clip</em>
+                </button>
+              </div>
+            </details>
           </div>
-        </details>
-      </div>
-    </div>
+        </div>
 
-    <div class="ribbon" id="ribbon"></div>
+        <div class="ribbon" id="ribbon"></div>
 
-    <div class="desk">
-      <aside class="index" id="index"></aside>
-      <div class="detail" id="detail"></div>
-    </div>
-  </section>
+        <div class="desk">
+          <aside class="index" id="index"></aside>
+          <div class="detail" id="detail"></div>
+        </div>
+      </section>
+    </main>
 
-</main>
+    <div class="toast" id="toast" hidden></div>
 
-<div class="toast" id="toast" hidden></div>
-
-<script type="module" src="./app.js"></script>
-<script>
-  // Registered as a classic script, not from app.js: the service worker must
-  // install even if a future change to app.js throws during module
-  // evaluation, and registration itself has nothing to do with the app's
-  // module graph.
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch((err) => {
-        console.error('Service worker registration failed:', err);
-      });
-    });
-  }
-</script>
-</body>
+    <script type="module" src="./app.js"></script>
+    <script>
+      // Registered as a classic script, not from app.js: the service worker must
+      // install even if a future change to app.js throws during module
+      // evaluation, and registration itself has nothing to do with the app's
+      // module graph.
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch((err) => {
+            console.error("Service worker registration failed:", err);
+          });
+        });
+      }
+    </script>
+  </body>
 </html>

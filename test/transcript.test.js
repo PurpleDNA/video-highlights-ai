@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parse, formatTimestamp, toSeconds, sliceText, videoId,
+  parse, formatTimestamp, formatWindowTime, toSeconds, sliceText, videoId,
 } from '../web/runtime/transcript.js';
 
 const RAW = [
@@ -44,4 +44,11 @@ test('videoId accepts every shape people paste', () => {
   assert.equal(videoId('https://youtu.be/IcUSXxnLGJU?t=42'), 'IcUSXxnLGJU');
   assert.equal(videoId('https://www.youtube.com/live/IcUSXxnLGJU'), 'IcUSXxnLGJU');
   assert.equal(videoId('not a link'), null);
+});
+
+test('clip window times keep half seconds, and whole seconds look as before', () => {
+  assert.equal(formatWindowTime(2477), '00:41:17');
+  assert.equal(formatWindowTime(2477.5), '00:41:17.5');
+  assert.equal(formatWindowTime(2477.04), '00:41:17'); // rounds to a tenth
+  assert.equal(toSeconds('00:41:17.5'), 2477.5);
 });

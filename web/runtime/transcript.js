@@ -32,6 +32,18 @@ export function formatTimestamp(seconds) {
 }
 
 /** '01:12:30' -> 4350. Accepts the HH:MM:SS strings the model returns. */
+/** A clip window's edge, as written into a caption header. Whole seconds
+ *  stay `HH:MM:SS` — byte-identical to every caption written before
+ *  fractions existed — and anything else gets one decimal (`HH:MM:SS.5`), the
+ *  review desk's half-second nudge being the reason. Transcript cue stamps
+ *  stay on formatTimestamp(): they are whole seconds by construction. */
+export function formatWindowTime(seconds) {
+  const tenths = Math.round(Number(seconds) * 10);
+  const whole = formatTimestamp(Math.floor(tenths / 10));
+  return tenths % 10 ? `${whole}.${tenths % 10}` : whole;
+}
+
+/** `HH:MM:SS` or `HH:MM:SS.s` -> seconds (the fraction rides along in `+s`). */
 export function toSeconds(hhmmss) {
   const [h, m, s] = String(hhmmss).trim().split(':');
   return +h * 3600 + +m * 60 + +s;

@@ -6,7 +6,7 @@
 import * as fsroot from './runtime/fsroot.js';
 import { readRun, listRuns } from './runtime/manifest.js';
 import { rewriteWindow } from './runtime/captions.js';
-import { formatTimestamp } from './runtime/transcript.js';
+import { formatWindowTime } from './runtime/transcript.js';
 import { fetchTranscript as fetchFromYouTube } from './runtime/transcript-fetch.js';
 import { setApiKey } from './runtime/store.js';
 import { exportRun } from './runtime/export.js';
@@ -70,6 +70,13 @@ export const api = {
     masterName = name;
   },
 
+  /** Rebind the picked recording to a name the reviewer typed in place of
+   *  the one derived from its file name, before a run exists — so the run,
+   *  its folder and masterUrl()/exportRun()'s name match all agree on it. */
+  renameRecording(name) {
+    if (master) masterName = name;
+  },
+
   /** Whether a master recording is loaded this session, and (if so) which
    *  webinar name it's bound to — app.js uses this to decide whether to show
    *  a "pick the recording again" prompt instead of the player. */
@@ -115,6 +122,16 @@ export const api = {
   async listRuns() {
     await ensureRoot();
     return listRuns(root);
+  },
+
+  /** Delete one run's whole output folder (output/<slug>/) from OPFS. The
+   *  transcript under transcripts/ is deliberately kept: it was paid for
+   *  (AssemblyAI), and a re-run of the same recording reuses it instead of
+   *  transcribing again. The optional mirror folder is never touched — what
+   *  was exported there belongs to the reviewer now. */
+  async deleteRun(slugName) {
+    await ensureRoot();
+    await fsroot.remove(root, `output/${slugName}`);
   },
 
   /** The text of an existing transcript file on disk, by webinar name. */
@@ -226,8 +243,8 @@ export const api = {
     const path = `output/${slugName}/${captionFile}`;
     const raw = await fsroot.readText(root, path);
     if (raw == null) throw new Error(`Could not read ${captionFile}`);
-    const start = formatTimestamp(startSec);
-    const end = formatTimestamp(endSec);
+    const start = formatWindowTime(startSec);
+    const end = formatWindowTime(endSec);
     await fsroot.writeText(root, path, rewriteWindow(raw, start, end));
   },
 

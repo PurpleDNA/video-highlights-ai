@@ -19,10 +19,12 @@ export function captionText(seg, caption) {
 // newlines: an earlier version used `\s*` here, which crossed the blank line
 // after the header and swallowed the first line of the body into the
 // rationale, corrupting the index/length that manifest-parse.js slices on.
-const WINDOW = /^\*\*(\d{1,2}:\d{2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2}:\d{2})\*\*([^\r\n]*)/m;
+// Each time may carry a fraction (`01:04:11.5`): the review desk nudges a
+// window by half a second (see transcript.js's formatWindowTime).
+const WINDOW = /^\*\*(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\s*[-–—]\s*(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\*\*([^\r\n]*)/m;
 // Captions written before the markdown switch put the window on a
 // `# HH:MM:SS-...` comment line. Older runs in output/ must stay readable.
-const WINDOW_LEGACY = /^#[ \t]*(\d{1,2}:\d{2}:\d{2})[ \t]*[-–—][ \t]*(\d{1,2}:\d{2}:\d{2})[ \t]*$/m;
+const WINDOW_LEGACY = /^#[ \t]*(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)[ \t]*[-–—][ \t]*(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)[ \t]*$/m;
 // ` · rationale`, ` - rationale`, `. rationale`, or nothing at all — the
 // separator and the rationale are both optional, because either can be
 // edited away by hand without the window ceasing to be a window.

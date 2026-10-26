@@ -84,12 +84,14 @@ export function members(files, scope) {
 /** Zip `output/<slugName>` for `scope` ('all' | 'clips' | 'text', default
  *  'all'). `clipBlobs` (default empty) is the `Map` of `clip.id -> Blob`
  *  export.js's `encodeApprovedClips` returns — see the module comment above
- *  for why a clip's video comes from there rather than from disk. Returns
+ *  for why a clip's video comes from there rather than from disk.
+ *  `clipSrts` (default empty) is its `srts` map, `clip.id -> SRT text`,
+ *  written beside each clip as `<clip.id>.srt`. Returns
  *  `{blob, filename}` — `filename` matches bundle.py's `zip_run` naming:
  *  `<slug>.zip` for 'all', `<slug>-<scope>.zip` otherwise. Throws for an
  *  unknown scope or one with nothing to bundle, exactly as bundle.py does
  *  (there via ValueError / FileNotFoundError). */
-export async function zipRun(root, slugName, scope = 'all', clipBlobs = new Map()) {
+export async function zipRun(root, slugName, scope = 'all', clipBlobs = new Map(), clipSrts = new Map()) {
   if (!(scope in SCOPES)) throw new Error(`Unknown scope '${scope}'`);
 
   const base = `${OUTPUT_DIR}/${slugName}`;
@@ -108,6 +110,13 @@ export async function zipRun(root, slugName, scope = 'all', clipBlobs = new Map(
   // wants every clip it's handed.
   for (const [clipId, blob] of clipBlobs) {
     archive[`${slugName}/${clipId}.mp4`] = new Uint8Array(await blob.arrayBuffer());
+  }
+  // Sidecar subtitles (export.js's `srts`), named to match their .mp4 so a
+  // player or mkvtoolnix pairs them without being told. `clipSrts` is only
+  // non-empty when the clean-video-plus-SRT download was asked for.
+  const enc = new TextEncoder();
+  for (const [clipId, text] of clipSrts) {
+    archive[`${slugName}/${clipId}.srt`] = enc.encode(text);
   }
 
   if (!Object.keys(archive).length) throw new Error(`Nothing to bundle for scope '${scope}'`);

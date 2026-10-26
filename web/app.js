@@ -19,7 +19,7 @@ import {
   getApiKey, getSettings, setSettings, getTranscriptionKey,
 } from './runtime/store.js';
 import { slug } from './runtime/slug.js';
-import { toSeconds, formatTimestamp } from './runtime/transcript.js';
+import { toSeconds, formatWindowTime } from './runtime/transcript.js';
 import { TRANSCRIPT_OFFSET_SEC } from './runtime/config.js';
 import { wireSettings, renderSettings, renderMirrorMeta } from './settings.js';
 
@@ -41,6 +41,8 @@ const state = {
   recordingName: null,   // the webinar name derived from the picked recording file, or null
   mirrorReady: false,    // an optional "also save to a folder" mirror is attached this session
   runs: [],              // webinar folders under output/, for "earlier runs"
+  runsExpanded: false,   // "earlier runs" showing the full, searchable history
+  runQuery: '',          // that history's search text
   apiKey: '',            // cached Anthropic key, loaded from store or freshly typed
   transcriptionKey: '',  // cached AssemblyAI key — optional, see the source pane
   posterGen: 0,          // bumped on every recording pick, to cancel a stale preview
@@ -173,6 +175,19 @@ function wireInput() {
   $('segments').onchange = persistSettings;
   $('perpanelist').onchange = persistSettings;
   $('run').onclick = startRun;
+  $('clear-recording').onclick = clearRecording;
+  $('rec-name').oninput = onRecordingRenamed;
+
+  $('runs-more').onclick = () => {
+    state.runsExpanded = !state.runsExpanded;
+    if (!state.runsExpanded) { state.runQuery = ''; $('runsearch').value = ''; }
+    renderRuns();
+    if (state.runsExpanded) $('runsearch').focus();
+  };
+  $('runsearch').oninput = () => {
+    state.runQuery = $('runsearch').value;
+    renderRuns();
+  };
 
   for (const b of document.querySelectorAll('[data-go="input"]')) {
     b.onclick = () => {
@@ -228,22 +243,57 @@ function onRecordingChosen() {
     state.recordingName = null;
     state.posterGen += 1; // cancel any in-flight preview for the file just cleared
     hidePosterPreview();
+    hideRename();
     note(null);
     validate();
     return;
   }
   state.recordingName = api.pickRecording(file);
+  $('rec-name').value = state.recordingName;
+  $('rename').hidden = false;
   checkExistingRun();
   validate();
   renderPosterPreview(file);
+}
+
+/** The name field starts as the file-derived name and every edit rebinds the
+ *  session's recording to what's typed (api.renameRecording), so the run, its
+ *  output folder and later playback/export all agree on one name. Kept as
+ *  typed in state — validate() decides whether it's usable — so a half-typed
+ *  name never gets silently rewritten under the reviewer's cursor. */
+function onRecordingRenamed() {
+  const name = $('rec-name').value.trim();
+  state.recordingName = name;
+  api.renameRecording(name);
+  checkExistingRun();
+  validate();
+}
+
+function hideRename() {
+  $('rename').hidden = true;
+  $('rec-name').value = '';
 }
 
 function hidePosterPreview() {
   $('slot-empty').hidden = false;
   $('slot-filled').hidden = true;
   $('slot-filled').classList.remove('enter');
-  $('rec-caption').hidden = true;
+  $('slot-meta').hidden = true;
   $('rec-caption').textContent = '';
+}
+
+/** Clear the picked recording off the input view — the poster, the caption
+ *  and the run gate — without unbinding it in api.js. The File is still the
+ *  session's master afterwards, so an earlier run made from it keeps playing
+ *  its clips; only picking a different recording replaces it. */
+function clearRecording() {
+  $('recording').value = '';
+  state.recordingName = null;
+  state.posterGen += 1; // cancel any preview still being drawn
+  hidePosterPreview();
+  hideRename();
+  note(null);
+  validate();
 }
 
 /** A poster frame in the slot the empty prompt just occupied, with
@@ -293,7 +343,7 @@ async function renderPosterPreview(file) {
       w && h ? `${w}×${h}` : '—',
       bytes(file.size),
     ].join(' · ');
-    $('rec-caption').hidden = false;
+    $('slot-meta').hidden = false;
 
     $('slot-empty').hidden = true;
     const filled = $('slot-filled');
@@ -348,7 +398,13 @@ async function persistSettings() {
  *  settings, same treatment as the missing-recording case. */
 function validate() {
   const blockers = [];
-  if (!state.recordingName) blockers.push({ text: 'Choose a recording to get started.' });
+  const picked = !!$('recording').files[0];
+  // The name becomes a path segment (transcripts/<name>.txt) and a folder
+  // slug (output/<slug>/), so it can't hold a separator or slug to nothing.
+  if (!picked) blockers.push({ text: 'Choose a recording to get started.' });
+  else if (!state.recordingName) blockers.push({ text: 'Give the webinar a name.' });
+  else if (/[/\\]/.test(state.recordingName)) blockers.push({ text: 'The name can’t contain / or \\.' });
+  else if (!slug(state.recordingName)) blockers.push({ text: 'The name needs at least one letter or number.' });
   if (!state.transcriptionKey) {
     blockers.push({
       text: 'Add an AssemblyAI key to transcribe it.',
@@ -375,6 +431,9 @@ async function startRun() {
   try {
     const name = state.recordingName;
     if (!name) throw new Error('Choose a recording first.');
+    // Bind once more at launch, so the File the worker gets is the one named
+    // in the field even if an edit and a click raced each other.
+    api.renameRecording(name);
     if (!state.transcriptionKey) throw new Error('Add an AssemblyAI key in settings first.');
     const segments = Number($('segments').value) || state.defaults.segments;
     const perPanelist = Number($('perpanelist').value) || state.defaults.perPanelist;
@@ -413,26 +472,96 @@ async function refreshRuns() {
   } catch { /* the list is a convenience; leave the last one up */ }
 }
 
+// How many runs "earlier runs" shows before "See all" expands it, in place,
+// into the full history with a search box.
+const RECENT_RUNS = 5;
+
 function renderRuns() {
   const runs = state.runs || [];
   $('earlier').hidden = runs.length === 0;
   $('earlier-count').textContent = runs.length
     ? `${runs.length} webinar${runs.length === 1 ? '' : 's'} processed`
     : '';
-  $('runlist').innerHTML = runs.map((run) => {
+
+  // Nothing to expand into once the list fits — collapse back on its own,
+  // e.g. after deleting down to RECENT_RUNS or fewer.
+  if (runs.length <= RECENT_RUNS) state.runsExpanded = false;
+  const query = state.runQuery.trim().toLowerCase();
+  const shown = !state.runsExpanded
+    ? runs.slice(0, RECENT_RUNS)
+    : runs.filter((run) => !query
+        || run.name.toLowerCase().includes(query)
+        || run.slug.toLowerCase().includes(query));
+
+  $('runsearch').hidden = !state.runsExpanded;
+  $('runlist-empty').hidden = shown.length > 0 || runs.length === 0;
+  $('runs-more').hidden = runs.length <= RECENT_RUNS;
+  $('runs-more').textContent = state.runsExpanded ? 'Show fewer' : `See all ${runs.length} runs`;
+
+  $('runlist').innerHTML = shown.map((run) => {
     const createdDate = run.created
       ? new Date(run.created * 1000).toLocaleDateString()
       : (run.modified ? new Date(run.modified).toLocaleDateString() : 'unknown');
     const countsText = `${run.counts.highlights} highlights, ${run.counts.panelist_clips} panelist clips, ${run.counts.cut} cut`;
     return `
-      <button class="runrow" data-slug="${esc(run.slug)}">
-        <span class="runrow-name">${esc(run.name)}</span>
-        <span class="runrow-meta">${esc(createdDate)} · ${esc(countsText)}</span>
-      </button>`;
+      <div class="runrow" data-slug="${esc(run.slug)}">
+        <button class="runrow-open">
+          <span class="runrow-name">${esc(run.name)}</span>
+          <span class="runrow-meta">${esc(createdDate)} · ${esc(countsText)}</span>
+        </button>
+        <button class="runrow-del" aria-label="Delete ${esc(run.name)}">Delete</button>
+      </div>`;
   }).join('');
   for (const row of $('runlist').querySelectorAll('.runrow')) {
-    row.onclick = () => { location.hash = `#/run/${encodeURIComponent(row.dataset.slug)}`; };
+    const slugName = row.dataset.slug;
+    row.querySelector('.runrow-open').onclick = () => {
+      location.hash = `#/run/${encodeURIComponent(slugName)}`;
+    };
+    wireRunDelete(row.querySelector('.runrow-del'), slugName);
   }
+}
+
+/** Two clicks, no browser confirm() (a native dialog would block the page):
+ *  the first arms the button, the second deletes. Arming lapses on its own
+ *  after a few seconds or when focus leaves, so a stray click never sits
+ *  one click away from losing a run. */
+function wireRunDelete(btn, slugName) {
+  let timer = null;
+  const disarm = () => {
+    clearTimeout(timer);
+    btn.classList.remove('armed');
+    btn.textContent = 'Delete';
+  };
+  btn.onblur = disarm;
+  btn.onclick = async () => {
+    if (!btn.classList.contains('armed')) {
+      btn.classList.add('armed');
+      btn.textContent = 'Confirm delete';
+      timer = setTimeout(disarm, 4000);
+      return;
+    }
+    clearTimeout(timer);
+    btn.disabled = true;
+    await deleteRun(slugName);
+  };
+}
+
+async function deleteRun(slugName) {
+  const run = state.runs.find((r) => r.slug === slugName);
+  if (state.job?.slug === slugName && !['done', 'error', 'cancelled'].includes(state.job.status)) {
+    toast('That run is still processing — stop it first.');
+    renderRuns();
+    return;
+  }
+  try {
+    await api.deleteRun(slugName);
+    if (state.run?.slug === slugName) state.run = null;
+    toast(`Deleted “${run?.name || slugName}”.`);
+  } catch (err) {
+    toast(`Could not delete that run: ${err.message}`);
+  }
+  await refreshRuns();
+  checkExistingRun();
 }
 
 // ── processing ───────────────────────────────────────────────────────────
@@ -684,6 +813,7 @@ function wireExport() {
         scope: btn.dataset.exportZip,
         toFolder: false,
         subtitles: btn.dataset.subtitles === '1',
+        srt: btn.dataset.srt === '1',
       });
     };
   }
@@ -738,7 +868,7 @@ async function runExport(opts) {
       // built — it just stopped being a choice the reviewer makes, so the
       // only thing left to name a download after is the subtitle flavour.
       const suffix = opts.scope && opts.scope !== 'all' ? `-${opts.scope}`
-        : (opts.subtitles ? '-subtitled' : '');
+        : (opts.subtitles ? '-subtitled' : opts.srt ? '-srt' : '');
       downloadBlob(blob, `${run.slug}${suffix}.zip`);
       toast('Zip downloaded.');
     }
@@ -1067,16 +1197,15 @@ async function renderClip(clip) {
       <h3>${esc(clip.title)}</h3>
       <div class="clip-facts">
         ${clip.speaker ? `<span class="who">${esc(clip.speaker)}</span>` : ''}
-        <span class="window-edit" id="window-edit">
-          <input type="text" class="win-input" id="win-start" value="${esc(clip.start || '')}"
-                 inputmode="numeric" autocomplete="off" placeholder="HH:MM:SS" aria-label="Clip start">
-          <span class="win-dash">–</span>
-          <input type="text" class="win-input" id="win-end" value="${esc(clip.end || '')}"
-                 inputmode="numeric" autocomplete="off" placeholder="HH:MM:SS" aria-label="Clip end">
-        </span>
         <span class="tnum" id="clip-duration-display">${esc(length(clip.duration))}</span>
         ${clip.highlight ? '<span class="flag">Highlight</span>' : ''}
         ${clip.video_bytes ? `<span class="tnum">${bytes(clip.video_bytes)}</span>` : ''}
+      </div>
+      <div class="window-bar" id="window-edit">
+        ${stepperHtml('start', 'Start', clip.start)}
+        <span class="win-arrow" aria-hidden="true">→</span>
+        ${stepperHtml('end', 'End', clip.end)}
+        <span class="win-hint">±0.5s per click</span>
       </div>
     </div>
     <div class="player-wrap" id="player-wrap"></div>
@@ -1100,7 +1229,31 @@ async function renderClip(clip) {
   wireClipDetail(clip);
 }
 
-const HHMMSS = /^\d{1,2}:\d{2}:\d{2}$/;
+const MINUS_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const PLUS_ICON = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+
+/** One edge of the clip window: a label over a joined [− time +] box. The
+ *  input keeps its `win-<edge>` id, which wireWindowInputs/resetWindowInputs
+ *  look it up by. */
+function stepperHtml(edge, label, value) {
+  const lower = label.toLowerCase();
+  // A div, not a <label>: clicking a label's text activates its first
+  // control, which here would be the − button.
+  return `<div class="stepper" role="group" aria-label="Clip ${lower}">
+    <span class="stepper-label" aria-hidden="true">${label}</span>
+    <span class="stepper-box">
+      <button type="button" class="win-nudge" data-edge="${edge}" data-by="-0.5"
+              aria-label="${label} half a second earlier" title="${label} 0.5s earlier">${MINUS_ICON}</button>
+      <input type="text" class="win-input" id="win-${edge}" value="${esc(value || '')}"
+             inputmode="numeric" autocomplete="off" placeholder="HH:MM:SS" aria-label="Clip ${lower}">
+      <button type="button" class="win-nudge" data-edge="${edge}" data-by="0.5"
+              aria-label="${label} half a second later" title="${label} 0.5s later">${PLUS_ICON}</button>
+    </span>
+  </div>`;
+}
+
+// A tenth of a second at most — what formatWindowTime() writes back.
+const HHMMSS = /^\d{1,2}:\d{2}:\d{2}(?:\.\d)?$/;
 
 function wireWindowInputs(clip) {
   const startEl = $('win-start');
@@ -1109,6 +1262,44 @@ function wireWindowInputs(clip) {
   const commit = () => onWindowChange(clip, startEl.value.trim(), endEl.value.trim());
   startEl.onchange = commit;
   endEl.onchange = commit;
+
+  for (const btn of document.querySelectorAll('#window-edit .win-nudge')) {
+    btn.onclick = () => nudgeWindow(clip, btn.dataset.edge, Number(btn.dataset.by));
+    // A mouse click mustn't leave focus on the button: the next Space, meant
+    // to pause the preview, would press it and nudge again. Keyboard focus
+    // (Tab) still lands on it normally.
+    btn.onmousedown = (e) => e.preventDefault();
+  }
+}
+
+// How far back from a nudged end the preview starts: long enough to hear
+// the sentence land, short enough not to sit through the whole clip again.
+const END_PREVIEW_SEC = 3;
+
+/** Move one edge of the window by `by` seconds (±0.5 from the buttons; the
+ *  caption header keeps a tenth — see formatWindowTime) through the same
+ *  onWindowChange a typed edit uses, so validation and the disk write are
+ *  shared. Then preview the edge that moved: from the new start, or from a
+ *  few seconds before the new end, so each nudge is heard where it matters. */
+function nudgeWindow(clip, edge, by) {
+  if (clip.start_sec == null || clip.end_sec == null) return;
+  let start = clip.start_sec;
+  let end = clip.end_sec;
+  if (edge === 'start') start = Math.max(0, start + by);
+  else end += by;
+  if (!(end > start)) { toast('End must be after start.'); return; }
+
+  onWindowChange(clip, formatWindowTime(start), formatWindowTime(end));
+
+  const player = state.player;
+  if (!player || player.style.display === 'none') return;
+  const from = edge === 'start' ? start : Math.max(start, end - END_PREVIEW_SEC);
+  const go = () => {
+    player.currentTime = from + TRANSCRIPT_OFFSET_SEC;
+    player.play().catch(() => { /* autoplay refused — the seek still landed */ });
+  };
+  if (player.readyState >= 1) go();
+  else player.addEventListener('loadedmetadata', go, { once: true });
 }
 
 function resetWindowInputs(clip) {
@@ -1123,7 +1314,7 @@ function resetWindowInputs(clip) {
  *  that, not instead of it. */
 async function onWindowChange(clip, startStr, endStr) {
   if (!HHMMSS.test(startStr) || !HHMMSS.test(endStr)) {
-    toast('Enter both times as HH:MM:SS.');
+    toast('Enter both times as HH:MM:SS, or HH:MM:SS.5 for a half second.');
     resetWindowInputs(clip);
     return;
   }
@@ -1137,8 +1328,8 @@ async function onWindowChange(clip, startStr, endStr) {
 
   clip.start_sec = startSec;
   clip.end_sec = endSec;
-  clip.start = formatTimestamp(startSec);
-  clip.end = formatTimestamp(endSec);
+  clip.start = formatWindowTime(startSec);
+  clip.end = formatWindowTime(endSec);
   clip.duration = endSec - startSec;
   resetWindowInputs(clip);
 
@@ -1213,6 +1404,9 @@ function wireKeys() {
   addEventListener('keydown', (e) => {
     if ($('view-results').hidden) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    // Space on a focused button presses that button; it mustn't also
+    // toggle the player.
+    if (e.key === ' ' && e.target.tagName === 'BUTTON') return;
 
     const items = [...$('index').querySelectorAll('.item')];
     const at = items.findIndex((i) => i.classList.contains('on'));

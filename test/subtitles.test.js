@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  stripSpeaker, cuesForWindow, cueAt, wrapLines, metrics,
+  stripSpeaker, cuesForWindow, cueAt, wrapLines, metrics, toSrt, srtTime,
 } from '../web/runtime/subtitles.js';
 import { parse } from '../web/runtime/transcript.js';
 
@@ -83,4 +83,23 @@ test('type scale is a fraction of the frame, not fixed pixels', () => {
   assert.ok(small.font >= 16, 'never smaller than legible on a phone');
   assert.ok(small.baseline < 360 && small.baseline > 360 * 0.8, 'sits in the lower centre');
   assert.ok(small.maxWidth < 640, 'leaves a margin on both sides');
+});
+
+test('SRT timestamps are HH:MM:SS,mmm', () => {
+  assert.equal(srtTime(0), '00:00:00,000');
+  assert.equal(srtTime(4.2), '00:00:04,200');
+  assert.equal(srtTime(3725.0456), '01:02:05,046');
+});
+
+test('SRT numbers each cue from 1, clip-relative, with a blank line between', () => {
+  const entries = cuesForWindow(parse(TRANSCRIPT), 60, 70);
+  assert.equal(toSrt(entries), [
+    '1', '00:00:00,000 --> 00:00:04,000', 'This one opens the clip.', '',
+    '2', '00:00:04,000 --> 00:00:08,000', 'And this is the reply.', '',
+    '3', '00:00:08,000 --> 00:00:10,000', 'Still talking here.', '',
+  ].join('\r\n'));
+});
+
+test('an empty window makes an empty SRT, not a malformed one', () => {
+  assert.equal(toSrt([]), '');
 });
