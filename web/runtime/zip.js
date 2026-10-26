@@ -4,10 +4,11 @@
  *    - `clips` — the `.mp4` files and their captions (`clips/` +
  *      `panelists/`).
  *    - `text`  — the markdown (`targeted/` plus the one-pager).
- *  `run.json`, `selection.json`, `cut-state.json` and `run-log.txt` are never
- *  included, in any scope — all four are the app's own bookkeeping (see
- *  runner.js's module comment on `selection.json`, export.js's on
- *  `cut-state.json`, and runlog.js's on the log),
+ *  `run.json`, `selection.json`, `cut-state.json`, `run-log.txt` and
+ *  `prompts-used.json` are never included, in any scope — all five are the
+ *  app's own bookkeeping (see runner.js's module comment on `selection.json`
+ *  and its recordPrompts(), export.js's on `cut-state.json`, and runlog.js's
+ *  on the log),
  *  not part of what a reviewer opens, the same rule `bundle.py` followed.
  *
  * Text and caption members are built from the folder on disk (via fsroot),
@@ -38,7 +39,9 @@ export const SCOPES = {
   text: 'One-pager and summaries',
 };
 
-const BOOKKEEPING_FILES = new Set(['run.json', 'selection.json', 'cut-state.json', 'run-log.txt']);
+const BOOKKEEPING_FILES = new Set([
+  'run.json', 'selection.json', 'cut-state.json', 'run-log.txt', 'prompts-used.json',
+]);
 
 /** Every file (not directory) under `<base>/<prefix>`, as paths relative to
  *  `base`, recursively — mirrors bundle.py's `sorted(out.rglob("*"))`

@@ -52,6 +52,18 @@ export function matchWindow(text) {
   };
 }
 
+/** `text` with its caption body swapped for `caption`, the header — title,
+ *  speaker, the window line and its rationale — kept byte-for-byte. This is
+ *  what "regenerate captions" writes: the window may have been nudged by
+ *  hand, and that edit lives only in this header, so rebuilding the file
+ *  from selection.json (captionText) would silently undo it. null when
+ *  there is no recognisable window to anchor on. */
+export function replaceCaptionBody(text, caption) {
+  const m = matchWindow(text);
+  if (!m) return null;
+  return `${text.slice(0, m.index + m.length)}\n\n${caption.trim()}\n`;
+}
+
 /** The window from a caption's header, or null if it is missing or malformed.
  *  Never throws: a reformatted header is reported and skipped, not fatal. */
 export function captionWindow(text) {

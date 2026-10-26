@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { captionText, captionWindow, matchWindow, rewriteWindow } from '../web/runtime/captions.js';
+import {
+  captionText, captionWindow, matchWindow, rewriteWindow, replaceCaptionBody,
+} from '../web/runtime/captions.js';
 
 const SEG = {
   title: 'Why yields matter',
@@ -112,4 +114,16 @@ test('rewriteWindow can move a whole-second window onto half seconds and back', 
   assert.deepEqual(captionWindow(half), { start: '01:00:41.5', end: '01:04:12.5' });
   const whole = rewriteWindow(half, '01:00:41', '01:04:11');
   assert.equal(whole, captionText(SEG, 'Body.'));
+});
+
+test('replaceCaptionBody keeps a hand-nudged header byte-for-byte', () => {
+  const nudged = rewriteWindow(captionText(SEG, 'Old caption.\n#old'), '01:00:41.5', '01:04:12.5');
+  const out = replaceCaptionBody(nudged, 'New caption.\n#new');
+  const header = nudged.slice(0, nudged.indexOf('Old caption.'));
+  assert.equal(out, `${header}New caption.\n#new\n`);
+  assert.deepEqual(captionWindow(out), { start: '01:00:41.5', end: '01:04:12.5' });
+});
+
+test('replaceCaptionBody refuses a file with no window rather than guessing', () => {
+  assert.equal(replaceCaptionBody('# Just a title\n\nBody', 'New'), null);
 });

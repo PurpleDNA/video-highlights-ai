@@ -28,7 +28,7 @@
  * is not optional, and nothing else automates it (no build step here).
  */
 
-const SW_VERSION = 'v37'; // bump on every release that touches anything under web/
+const SW_VERSION = 'v40'; // bump on every release that touches anything under web/
 const CACHE_NAME = `video-highlights-${SW_VERSION}`;
 
 const ASSETS = [

@@ -67,3 +67,11 @@ export async function getSettings() {
   };
 }
 export const setSettings = (s) => put('settings', s);
+
+// Prompt edits from the settings page: only the prompts that differ from the
+// built-in defaults, as `{ key: text }` (prompts.js's DEFAULT_PROMPTS keys).
+// Storing only edits, not a full copy, means an improved default in a later
+// release still reaches every prompt a reviewer never touched. Per browser:
+// each person's edits stay in their own browser.
+export const getPrompts = async () => (await get('prompts')) || {};
+export const setPrompts = (edits) => put('prompts', edits);

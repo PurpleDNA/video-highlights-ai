@@ -111,14 +111,15 @@
  */
 
 import {
-  onePager, selectClips, socialCaption, targetedSummary, AUDIENCES,
+  onePager, selectClips, socialCaption, targetedSummary, AUDIENCES, promptsInUse,
 } from './steps.js';
 import { parse, toSeconds, sliceText, formatTimestamp, videoId } from './transcript.js';
 import { boundariesFromWords, boundariesFromCues, snapWindow } from './snap.js';
 import { fetchTranscript } from './transcript-fetch.js';
 import { extractAudio } from './audio.js';
 import { transcribe } from './transcribe.js';
-import { captionText } from './captions.js';
+import { captionText, replaceCaptionBody } from './captions.js';
+import { readRun } from './manifest.js';
 import { writeText, readText, exists, listDir, pathsFor, transcriptPath, wordsPath } from './fsroot.js';
 import { slug } from './slug.js';
 import { MIN_CLIP_SEC } from './config.js';
@@ -277,6 +278,7 @@ export async function runPipeline({
     name, segments, perPanelist, masterFile, recordingSec,
     transcriptionKey: !!transcriptionKey, youtube: !!youtube,
   });
+  await recordPrompts(root, paths, log);
   const tPath = transcriptPath(name);
   const onePagerPath = `${paths.out}/one-pager.md`;
   const selectionPath = `${paths.out}/selection.json`;
@@ -581,8 +583,7 @@ export async function runPipeline({
     if (await exists(root, path)) continue;
     targetedNew = true;
     emit({ type: 'note', level: 'info', message: `Targeted summary: ${key}` });
-    const text = await targetedSummary(onePagerText, key);
-    await writeText(root, path, toMarkdown(`${name} — For ${titleCase(key)}`, text));
+    await writeTargeted(root, paths, name, key, onePagerText);
   }
   emit({
     type: 'stage', key: 'targeted', status: 'done', label: 'Re-angling for each audience',
@@ -627,4 +628,118 @@ async function logRunStart(log, o) {
     : 'recording: none loaded this session');
   log.info(`keys: AssemblyAI ${o.transcriptionKey ? 'set' : 'not set'} · YouTube link ${o.youtube ? 'given' : 'none'}`);
   await log.flush();
+}
+
+async function writeTargeted(root, paths, name, key, onePagerText) {
+  const text = await targetedSummary(onePagerText, key);
+  await writeText(root, `${paths.targeted}/${key}.md`, toMarkdown(`${name} — For ${titleCase(key)}`, text));
+}
+
+/** Which prompts this attempt runs with: a line in the log, and the full
+ *  resolved set in output/<slug>/prompts-used.json (bookkeeping — zip.js
+ *  leaves it out), so a run that "went in another direction" can be traced
+ *  to the wording that sent it there. Overwritten by each attempt; the log
+ *  keeps the history. */
+async function recordPrompts(root, paths, log) {
+  const { customized, prompts } = promptsInUse();
+  log.info(customized.length
+    ? `prompts: customized — ${customized.join(', ')} (full text in prompts-used.json)`
+    : 'prompts: built-in defaults');
+  try {
+    await writeText(root, `${paths.out}/prompts-used.json`, JSON.stringify(
+      { at: new Date().toISOString(), customized, prompts }, null, 2));
+  } catch { /* bookkeeping only — never fail a run over it */ }
+  await log.flush();
+}
+
+/** Redo one part of a finished run with the prompts now in use — the
+ *  results view's "Regenerate" menu. Never re-transcribes and never re-runs
+ *  clip selection: the transcript on disk and the clip windows stay as they
+ *  are.
+ *    'one-pager' — the one-pager, then the three audience summaries, since
+ *                  they are written from it and would otherwise go stale.
+ *    'targeted'  — the audience summaries, from the one-pager on disk.
+ *    'captions'  — each clip's caption, written from the transcript of its
+ *                  *current* window, with replaceCaptionBody() keeping the
+ *                  header — and so any hand-nudged window — byte-for-byte.
+ *  Logs to the same run-log.txt, and emits the same event shapes as a run
+ *  under stage key 'regenerate'. */
+export async function regenerate({ root, name, what, emit: rawEmit = () => {}, signal }) {
+  const paths = pathsFor(name);
+  const log = createRunLog(root, slug(name));
+  const emit = (event) => { log.event(event); rawEmit(event); };
+  setLogger((level, line) => log[level](line));
+  log.header(`regenerate ${what} · ${new Date().toISOString()}`);
+  await recordPrompts(root, paths, log);
+
+  const stage = (status, detail) => emit({
+    type: 'stage', key: 'regenerate', status, label: `Regenerating ${what}`, detail,
+  });
+
+  try {
+    const raw = await readText(root, transcriptPath(name));
+    if (!raw) throw new Error(`No transcript on disk for "${name}" — run it again to rebuild one.`);
+    const cues = parse(raw);
+    stage('running');
+
+    if (what === 'one-pager' || what === 'targeted') {
+      const onePagerPath = `${paths.out}/one-pager.md`;
+      let onePagerText;
+      if (what === 'one-pager') {
+        onePagerText = await onePager(raw);
+        await writeText(root, onePagerPath, toMarkdown(`${name} — One-Pager`, onePagerText));
+        emit({ type: 'note', level: 'info', message: `One-pager rewritten (${wordCount(onePagerText)} words)` });
+      } else {
+        const onDisk = await readText(root, onePagerPath);
+        if (!onDisk) throw new Error('There is no one-pager to re-angle — regenerate the one-pager instead.');
+        onePagerText = fromMarkdown(onDisk);
+      }
+      for (const key of Object.keys(AUDIENCES)) {
+        checkCancelled(signal);
+        emit({ type: 'note', level: 'info', message: `Targeted summary: ${key}` });
+        await writeTargeted(root, paths, name, key, onePagerText);
+      }
+      stage('done', what === 'one-pager' ? 'one-pager and 3 audience summaries' : '3 audience summaries');
+    } else if (what === 'captions') {
+      const run = await readRun(root, slug(name));
+      const clips = [...run.highlights, ...run.panelists.flatMap((p) => p.clips)];
+      const total = clips.length;
+      emit({ type: 'count', key: 'regenerate', total });
+      let done = 0;
+      let skippedCount = 0;
+      for (const clip of clips) {
+        checkCancelled(signal);
+        const text = clip.start_sec != null && clip.end_sec != null
+          ? sliceText(cues, clip.start_sec, clip.end_sec) : '';
+        let reason = text.trim() ? null : 'no transcript text in its window';
+        if (!reason) {
+          const caption = await socialCaption(clip.title, text);
+          // Read the file only now, after the model has answered, so a window
+          // nudged while this call was in flight is the one kept.
+          const capPath = `${paths.out}/${clip.caption_file}`;
+          const next = replaceCaptionBody((await readText(root, capPath)) || '', caption);
+          if (next) await writeText(root, capPath, next);
+          else reason = 'its caption file has no readable window';
+        }
+        if (reason) {
+          skippedCount += 1;
+          emit({ type: 'clip', status: 'skipped', base: clip.base, reason, done, total });
+        } else {
+          done += 1;
+          emit({ type: 'clip', status: 'caption', base: clip.base, title: clip.title, done, total });
+        }
+      }
+      stage('done', `${done} of ${total}` + (skippedCount ? ` · ${skippedCount} skipped` : ''));
+    } else {
+      throw new Error(`Unknown regenerate target "${what}".`);
+    }
+    log.info('regenerate finished');
+  } catch (err) {
+    if (err && err.name === 'AbortError') log.warn('regenerate cancelled');
+    else log.error(`regenerate failed: ${(err && err.stack) || err}`);
+    throw err;
+  } finally {
+    setLogger(null);
+    await log.flush();
+  }
 }

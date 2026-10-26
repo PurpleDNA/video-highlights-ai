@@ -8,7 +8,7 @@ import { readRun, listRuns } from './runtime/manifest.js';
 import { rewriteWindow } from './runtime/captions.js';
 import { formatWindowTime } from './runtime/transcript.js';
 import { fetchTranscript as fetchFromYouTube } from './runtime/transcript-fetch.js';
-import { setApiKey } from './runtime/store.js';
+import { setApiKey, getPrompts } from './runtime/store.js';
 import { exportRun } from './runtime/export.js';
 import { createRunLog, logPath } from './runtime/runlog.js';
 
@@ -230,7 +230,39 @@ export const api = {
     // webinar name `opts.name` is — the run worker uses it (with
     // `opts.transcriptionKey`) for the AssemblyAI transcript source, ahead of
     // the YouTube-link fallback (see runner.js).
-    w.postMessage({ type: 'start', root, ...opts, master, recordingSec: masterSec });
+    // The saved prompt edits ride along (read fresh, so an edit made a moment
+    // ago counts); a store that can't be read means the defaults.
+    getPrompts().catch(() => null).then((prompts) => {
+      w.postMessage({ type: 'start', root, ...opts, master, recordingSec: masterSec, prompts });
+    });
+  },
+
+  /** Redo one part of a finished run in the worker with the current prompts
+   *  — `what` is 'one-pager' | 'targeted' | 'captions' (see runner.js's
+   *  regenerate). Resolves when done; rejects with the worker's own
+   *  reviewer-facing message (and `hint`). `onEvent` gets its progress
+   *  events, the same shapes a run emits, under stage key 'regenerate'. */
+  regenerate(name, what, apiKey, onEvent = () => {}) {
+    if (!root) return Promise.reject(new Error("Storage isn't ready yet — reload and try again."));
+    const w = ensureWorker();
+    return new Promise((resolve, reject) => {
+      const handle = (e) => {
+        const event = e.data;
+        if (event.type === 'done') {
+          w.removeEventListener('message', handle);
+          resolve();
+        } else if (event.type === 'error') {
+          w.removeEventListener('message', handle);
+          reject(Object.assign(new Error(event.message), { hint: event.hint, kind: event.kind }));
+        } else {
+          onEvent(event);
+        }
+      };
+      w.addEventListener('message', handle);
+      getPrompts().catch(() => null).then((prompts) => {
+        w.postMessage({ type: 'regenerate', root, name, what, apiKey, prompts });
+      });
+    });
   },
 
   cancelRun() {

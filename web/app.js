@@ -821,11 +821,60 @@ function wireExport() {
     };
   }
 
-  // Clicking anywhere else dismisses it, the way every other menu on the
-  // web does. <details> has no such behaviour of its own.
+  const regen = $('regen-menu');
+  for (const btn of regen.querySelectorAll('[data-regen]')) {
+    btn.onclick = () => {
+      regen.open = false; // same reason as the download menu above
+      runRegenerate(btn.dataset.regen);
+    };
+  }
+
+  // Clicking anywhere else dismisses an open menu, the way every other menu
+  // on the web does. <details> has no such behaviour of its own.
   document.addEventListener('click', (e) => {
-    if (menu.open && !menu.contains(e.target)) menu.open = false;
+    for (const m of [menu, regen]) if (m.open && !m.contains(e.target)) m.open = false;
   });
+}
+
+const REGEN_DONE = {
+  'one-pager': 'One-pager and audience summaries rewritten.',
+  targeted: 'Audience summaries rewritten.',
+  captions: 'Captions rewritten — your windows were kept.',
+};
+
+/** Redo one part of this run with the prompts now saved in settings (see
+ *  runner.js's regenerate), then reload the run so the new text shows —
+ *  keeping whatever clip or document was open. Shares the export's busy
+ *  state: the two can't overlap, and both talk to the same workers. */
+async function runRegenerate(what) {
+  const run = state.run;
+  if (!run) return;
+  if (!state.apiKey) {
+    toast('Add an Anthropic key in settings first.');
+    return;
+  }
+  const keep = state.selected;
+  setExportBusy(true);
+  $('export-status').textContent = 'Regenerating…';
+  try {
+    await api.regenerate(run.name, what, state.apiKey, onRegenerateEvent);
+    await openRun(run.slug);
+    if (keep && (keep.kind === 'doc' || state.clips.some((c) => c.id === keep.id))) select(keep);
+    toast(REGEN_DONE[what]);
+  } catch (err) {
+    toast(err.hint ? `${err.message} ${err.hint}` : (err.message || 'Regenerate failed.'));
+  } finally {
+    setExportBusy(false);
+    $('export-status').textContent = '';
+  }
+}
+
+function onRegenerateEvent(event) {
+  if (event.type === 'clip' && event.total) {
+    $('export-status').textContent = `Captions ${event.done} / ${event.total}…`;
+  } else if (event.type === 'note' && event.message) {
+    $('export-status').textContent = `${event.message}…`;
+  }
 }
 
 /** "Cut clips to folder" only means anything with a mirror attached (see
@@ -836,9 +885,10 @@ function wireExport() {
  *  every control including that one. */
 function setExportBusy(busy) {
   for (const btn of $('export-actions').querySelectorAll('button')) btn.disabled = busy;
-  const menu = $('download-menu');
-  menu.classList.toggle('is-busy', busy);
-  if (busy) menu.open = false;
+  for (const menu of [$('download-menu'), $('regen-menu')]) {
+    menu.classList.toggle('is-busy', busy);
+    if (busy) menu.open = false;
+  }
   if (!busy) renderMirrorMeta(state.mirrorReady);
 }
 

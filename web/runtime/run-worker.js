@@ -13,8 +13,9 @@
  *  having the worker fetch its own separate one.
  */
 
-import { runPipeline } from './runner.js';
+import { runPipeline, regenerate } from './runner.js';
 import { setApiKey } from './llm.js';
+import { usePrompts } from './steps.js';
 
 let active = null;
 
@@ -26,7 +27,7 @@ self.onmessage = async (e) => {
     return;
   }
 
-  if (msg.type !== 'start') return;
+  if (msg.type !== 'start' && msg.type !== 'regenerate') return;
   if (active) {
     self.postMessage({ type: 'error', message: 'A run is already going.',
                        hint: 'Wait for it to finish, or cancel it first.' });
@@ -35,7 +36,18 @@ self.onmessage = async (e) => {
 
   active = new AbortController();
   setApiKey(msg.apiKey);
+  // The reviewer's saved prompt edits (store.js's getPrompts), posted in by
+  // api.js; null means the built-in defaults.
+  usePrompts(msg.prompts ?? null);
   try {
+    if (msg.type === 'regenerate') {
+      await regenerate({
+        root: msg.root, name: msg.name, what: msg.what,
+        emit: (event) => self.postMessage(event), signal: active.signal,
+      });
+      self.postMessage({ type: 'done', summary: null });
+      return;
+    }
     const summary = await runPipeline({
       root: msg.root,
       name: msg.name,

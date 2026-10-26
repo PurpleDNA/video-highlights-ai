@@ -271,6 +271,23 @@
                 </div>
               </div>
             </div>
+
+            <div class="console">
+              <div class="console-pane">
+                <div class="pane-head">
+                  <h3>Prompts</h3>
+                  <span class="pane-note">what the model is asked to write</span>
+                </div>
+                <p class="prompts-intro">
+                  Edits apply to new runs, and to <b>Regenerate</b> on a finished run — existing
+                  results aren't touched. Saved in this browser.
+                </p>
+                <div class="prompts-tools">
+                  <button class="linkish" type="button" id="prompts-reset-all">Reset all to defaults</button>
+                </div>
+                <div class="prompt-list" id="prompt-list"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -335,6 +352,21 @@
             >
               Cut clips to folder
             </button>
+            <details class="dropdown" id="regen-menu">
+              <summary class="ghost"
+                       title="Rewrite part of this run with the prompts now in Settings">Regenerate</summary>
+              <div class="dropdown-menu" role="menu">
+                <button role="menuitem" data-regen="one-pager">
+                  One-pager<em>…and the 3 audience summaries written from it</em>
+                </button>
+                <button role="menuitem" data-regen="targeted">
+                  Audience summaries<em>Re-angle the current one-pager</em>
+                </button>
+                <button role="menuitem" data-regen="captions">
+                  Captions<em>Every clip — your edited windows are kept</em>
+                </button>
+              </div>
+            </details>
             <details class="dropdown" id="download-menu">
               <summary class="primary">Download zip folder</summary>
               <div class="dropdown-menu" role="menu">
