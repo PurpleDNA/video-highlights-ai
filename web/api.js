@@ -10,6 +10,7 @@ import { formatWindowTime } from './runtime/transcript.js';
 import { fetchTranscript as fetchFromYouTube } from './runtime/transcript-fetch.js';
 import { setApiKey } from './runtime/store.js';
 import { exportRun } from './runtime/export.js';
+import { createRunLog, logPath } from './runtime/runlog.js';
 
 let worker = null;
 let root = null;        // OPFS — the source of truth, always available once fetched once
@@ -23,10 +24,35 @@ let mirror = null;      // the optional "also save to a folder" handle, or null
 // is never silently used to cut clips for a different one.
 let master = null;
 let masterName = null;
+// The master's duration in seconds, as the input view's poster preview read
+// it from <video> metadata — null until then, or for a re-picked master.
+let masterSec = null;
+
+// Errors no run log can catch, kept for this session and put at the top of
+// a downloaded log: uncaught page errors, and the run worker failing to load
+// at all — which otherwise leaves the run view waiting on events that will
+// never come.
+const pageErrors = [];
+const MAX_PAGE_ERRORS = 50;
+
+function notePageError(text) {
+  pageErrors.push(`${new Date().toISOString()} ${text}`);
+  if (pageErrors.length > MAX_PAGE_ERRORS) pageErrors.shift();
+}
+
+addEventListener('error', (e) => {
+  notePageError(`error: ${e.message} (${e.filename || '?'}:${e.lineno || '?'})`);
+});
+addEventListener('unhandledrejection', (e) => {
+  notePageError(`unhandled rejection: ${(e.reason && e.reason.stack) || e.reason}`);
+});
 
 function ensureWorker() {
   if (!worker) {
     worker = new Worker(new URL('./runtime/run-worker.js', import.meta.url), { type: 'module' });
+    worker.addEventListener('error', (e) => {
+      notePageError(`run worker: ${e.message || 'failed to load'} (${e.filename || '?'}:${e.lineno || '?'})`);
+    });
   }
   return worker;
 }
@@ -55,6 +81,7 @@ export const api = {
    *  picker, before a run exists yet. Returns the derived webinar name. */
   pickRecording(file) {
     master = file;
+    masterSec = null;
     masterName = file.name.replace(/\.[^./]+$/, '');
     return masterName;
   },
@@ -67,7 +94,14 @@ export const api = {
    *  used to provide by path. */
   attachMasterFor(name, file) {
     master = file;
+    masterSec = null;
     masterName = name;
+  },
+
+  /** The picked recording's duration, once the page has read it. Carried
+   *  into the run so its log can compare the transcript against it. */
+  noteRecordingDuration(seconds) {
+    masterSec = Number.isFinite(seconds) ? seconds : null;
   },
 
   /** Rebind the picked recording to a name the reviewer typed in place of
@@ -196,7 +230,7 @@ export const api = {
     // webinar name `opts.name` is — the run worker uses it (with
     // `opts.transcriptionKey`) for the AssemblyAI transcript source, ahead of
     // the YouTube-link fallback (see runner.js).
-    w.postMessage({ type: 'start', root, ...opts, master });
+    w.postMessage({ type: 'start', root, ...opts, master, recordingSec: masterSec });
   },
 
   cancelRun() {
@@ -232,6 +266,41 @@ export const api = {
     return URL.createObjectURL(master);
   },
 
+  /** Everything worth sending someone troubleshooting a run, as one text
+   *  file: this browser and session up top (app version, browser, storage,
+   *  which recording is loaded, page errors), then the run's own
+   *  run-log.txt. Read fresh each time, so it includes the attempt that just
+   *  failed. Holds no API keys and no transcript text — see runlog.js. */
+  async logBlob(slugName) {
+    await ensureRoot();
+    const runLog = await fsroot.readText(root, logPath(slugName));
+    let version = 'unknown';
+    try { version = (await caches.keys()).join(', ') || 'no service worker cache'; } catch { /* no Cache API */ }
+    let storage = 'unknown';
+    try {
+      const { usage, quota } = await navigator.storage.estimate();
+      storage = `${(usage / 1e6).toFixed(0)}MB used of ${(quota / 1e9).toFixed(1)}GB`;
+    } catch { /* estimate unavailable */ }
+    const lines = [
+      'Video Highlights — troubleshooting log',
+      `Run folder: output/${slugName}`,
+      `Downloaded: ${new Date().toISOString()}`,
+      `App: ${version}`,
+      `Browser: ${navigator.userAgent}`,
+      `Storage: ${storage}`,
+      `Recording loaded: ${master
+        ? `"${masterName}" · ${(master.size / 1e6).toFixed(1)}MB${masterSec ? ` · ${masterSec.toFixed(1)}s` : ''}`
+        : 'none'}`,
+      '',
+      '---- page errors this session ----',
+      ...(pageErrors.length ? pageErrors : ['none']),
+      '',
+      '---- run log ----',
+      runLog || '(nothing logged yet — runs made before logging existed have no log)',
+    ];
+    return new Blob([lines.join('\n')], { type: 'text/plain' });
+  },
+
   /** Rewrite a clip's time window in place on disk. Reads the caption file
    *  fresh and rewrites only the `**HH:MM:SS–HH:MM:SS**` line via
    *  captions.js's rewriteWindow() — title, speaker, rationale, and anything
@@ -263,6 +332,27 @@ export const api = {
    *  `toFolder` is true, in which case there is nothing to hand back. */
   async exportRun(slugName, runName, opts = {}, onEvent = () => {}) {
     await ensureRoot();
+    // Exports log into the same run-log.txt the run itself wrote.
+    const log = createRunLog(root, slugName);
+    log.header(`export · ${new Date().toISOString()}`);
+    log.info(`options: ${opts.toFolder ? 'to mirror folder' : 'zip'}`
+      + ` · ${opts.subtitles ? 'burned-in subtitles' : opts.srt ? 'clean video + SRT' : 'clean video'}`
+      + ` · mirror ${mirror ? 'attached' : 'not attached'}`
+      + ` · recording ${master ? `"${masterName}" (${(master.size / 1e6).toFixed(1)}MB)` : 'not loaded'}`);
+    const emit = (event) => { log.event(event); onEvent(event); };
+    try {
+      const result = await api._exportRun(slugName, runName, opts, emit);
+      log.info('export finished');
+      return result;
+    } catch (err) {
+      log.error(`export failed: ${(err && err.stack) || err}`);
+      throw err;
+    } finally {
+      await log.flush();
+    }
+  },
+
+  async _exportRun(slugName, runName, opts, onEvent) {
     let sessionMaster = null;
     if (master) {
       // Normalize names for comparison: trim and case-insensitive, so a

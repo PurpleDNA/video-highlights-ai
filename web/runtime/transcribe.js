@@ -155,7 +155,9 @@ async function pollTranscript(id, apiKey, signal) {
 
 /** Transcribe `blob` via AssemblyAI and return `{ text, words }`, where
  *  `text` is `[HH:MM:SS] SPEAKER: text` cues (parses with transcript.js's
- *  parse()) and `words` is AssemblyAI's own word timings.
+ *  parse()), `words` is AssemblyAI's own word timings, and `id` is their
+ *  transcript id — for the run log, since it is what their support and
+ *  dashboard look a transcript up by.
  *
  *  `onProgress`, if given, is called with one of 'upload', 'transcribing',
  *  'done'. `signal`, if given, is honoured both during the upload and the
@@ -179,5 +181,5 @@ export async function transcribe(blob, apiKey, { onProgress, signal } = {}) {
   // sentence-END times anywhere in the pipeline (see snap.js), and it is
   // data we have already paid for. runner.js persists it next to the
   // transcript; nothing else here keeps a reference.
-  return { text, words };
+  return { text, words, id };
 }

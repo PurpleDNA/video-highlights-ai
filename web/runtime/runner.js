@@ -122,6 +122,8 @@ import { captionText } from './captions.js';
 import { writeText, readText, exists, listDir, pathsFor, transcriptPath, wordsPath } from './fsroot.js';
 import { slug } from './slug.js';
 import { MIN_CLIP_SEC } from './config.js';
+import { createRunLog, coverageWarning } from './runlog.js';
+import { setLogger } from './llm.js';
 
 function checkCancelled(signal) {
   if (signal && signal.aborted) {
@@ -260,10 +262,21 @@ async function snapSelection(root, name, cues, selected, emit) {
  *  id and the transcript stage fetches it itself. Output lands in
  *  `output/<slug>/` inside `root`. */
 export async function runPipeline({
-  root, name, youtube, transcript, segments, perPanelist, emit = () => {}, signal,
-  masterFile = null, transcriptionKey = null,
+  root, name, youtube, transcript, segments, perPanelist, emit: rawEmit = () => {}, signal,
+  masterFile = null, transcriptionKey = null, recordingSec = null,
 }) {
   const paths = pathsFor(name);
+
+  // Every event the page sees also lands in output/<slug>/run-log.txt (see
+  // runlog.js), along with the facts below that the screen never showed.
+  const log = createRunLog(root, slug(name));
+  const emit = (event) => { log.event(event); rawEmit(event); };
+  const warn = (message) => emit({ type: 'note', level: 'warn', message });
+  setLogger((level, line) => log[level](line));
+  await logRunStart(log, {
+    name, segments, perPanelist, masterFile, recordingSec,
+    transcriptionKey: !!transcriptionKey, youtube: !!youtube,
+  });
   const tPath = transcriptPath(name);
   const onePagerPath = `${paths.out}/one-pager.md`;
   const selectionPath = `${paths.out}/selection.json`;
@@ -315,14 +328,31 @@ export async function runPipeline({
   // AssemblyAI first when a key and the master File are both in hand (see
   // the module comment's ordering), the YouTube link otherwise.
   let effectiveTranscript = transcript && transcript.trim() ? transcript : null;
+  // The audio track's own length, once extraction has read it — a better
+  // yardstick than the <video> element's duration when both exist.
+  let audioTrackSec = null;
+  if (effectiveTranscript !== null) {
+    log.info('transcript source: supplied with the run');
+  }
   if (effectiveTranscript === null) {
     if (onDiskTranscript !== null) {
+      log.info(`transcript source: reused from ${tPath} (already on disk — not re-transcribed)`);
       effectiveTranscript = onDiskTranscript;
     } else if (transcriptionKey && masterFile) {
+      log.info('transcript source: AssemblyAI, from audio extracted out of the recording');
       emit({ type: 'note', level: 'info', message: 'Extracting audio from the recording…' });
-      const audioBlob = await extractAudio(masterFile, null, signal);
+      const extractStarted = Date.now();
+      const audioBlob = await extractAudio(masterFile, null, signal, (a) => {
+        audioTrackSec = a.trackSec;
+        log.info(`audio: ${a.codec} ${a.sampleRate}Hz ${a.channels}ch · track ${a.trackSec.toFixed(1)}s, `
+          + `${a.expectedSamples} samples · extracted ${a.extractedSamples} samples = `
+          + `${a.extractedSec.toFixed(1)}s · ${(a.outputBytes / 1e6).toFixed(1)}MB `
+          + `in ${((Date.now() - extractStarted) / 1000).toFixed(1)}s`);
+        const short = coverageWarning('Extracted audio', a.extractedSec, a.trackSec, 0.98);
+        if (short) warn(short);
+      });
       checkCancelled(signal);
-      const { text, words } = await transcribe(audioBlob, transcriptionKey, {
+      const { text, words, id: assemblyId } = await transcribe(audioBlob, transcriptionKey, {
         signal,
         // 'upload' and 'transcribing' are the only phases worth a note here —
         // 'done' fires an instant before this whole branch returns anyway,
@@ -339,6 +369,7 @@ export async function runPipeline({
         },
       });
       effectiveTranscript = text;
+      log.info(`assemblyai: transcript ${assemblyId} · ${(words || []).length} words`);
       // Persist the word timings beside the transcript. They are the only
       // source of sentence-end times in the pipeline (snap.js explains why
       // the cue list cannot supply one), and re-fetching them would mean
@@ -350,6 +381,7 @@ export async function runPipeline({
     } else {
       const id = videoId(youtube);
       if (id) {
+        log.info('transcript source: YouTube captions');
         emit({ type: 'note', level: 'info', message: 'Fetching the transcript from YouTube…' });
         effectiveTranscript = await fetchTranscript(id, { signal });
       } else {
@@ -397,6 +429,14 @@ export async function runPipeline({
       'empty or in an unexpected format.');
   }
   const runtimeSec = cues[cues.length - 1].seconds;
+  const expectedSec = audioTrackSec ?? recordingSec;
+  log.info(`transcript: ${cues.length} cues · last cue at ${formatTimestamp(runtimeSec)}`
+    + (expectedSec ? ` · recording ${formatTimestamp(expectedSec)}` : ' · recording length unknown'));
+  // Checked on every run, reused transcripts included: a short one saved by
+  // an earlier, broken run is reused silently otherwise (see the transcript
+  // source order above), which is exactly how a bad transcript sticks.
+  const thin = coverageWarning('The transcript', runtimeSec, expectedSec);
+  if (thin) warn(thin);
   emit({
     type: 'stage', key: 'transcript', status: 'done', label: 'Reading transcript',
     detail: transcriptUnchanged
@@ -550,6 +590,7 @@ export async function runPipeline({
   });
 
   await writeText(root, runMetaPath, JSON.stringify(runMeta('done', Date.now() / 1000), null, 2));
+  log.info(`run finished: ${made.length} captions written, ${skipped.length} skipped`);
 
   return {
     name, slug: slug(name), out: paths.out, clipsWritten: made.length, skipped,
@@ -561,7 +602,29 @@ export async function runPipeline({
     // re-thrown untouched: run-worker.js's describe() needs it as-is (its
     // AbortError / SyntaxError / message checks all inspect the original).
     const status = err && err.name === 'AbortError' ? 'cancelled' : 'error';
+    if (status === 'cancelled') log.warn('run cancelled');
+    else log.error(`run failed: ${(err && err.stack) || err}`);
     await writeText(root, runMetaPath, JSON.stringify(runMeta(status, Date.now() / 1000), null, 2));
     throw err;
+  } finally {
+    setLogger(null);
+    await log.flush();
   }
+}
+
+/** The attempt's banner and the setup facts worth having in hand when a run
+ *  goes wrong. Booleans for the keys — whether one was set, never its value. */
+async function logRunStart(log, o) {
+  log.header(`run "${o.name}" · ${new Date().toISOString()}`);
+  let version = 'unknown';
+  try { version = (await caches.keys()).join(', ') || 'no service worker cache'; } catch { /* no Cache API here */ }
+  log.info(`app: ${version} · ${navigator.userAgent}`);
+  log.info(`settings: ${o.segments} highlights, up to ${o.perPanelist} per panelist`);
+  log.info(o.masterFile
+    ? `recording: "${o.masterFile.name}" · ${(o.masterFile.size / 1e6).toFixed(1)}MB · `
+      + `${o.masterFile.type || 'unknown type'} · modified ${new Date(o.masterFile.lastModified).toISOString()}`
+      + (o.recordingSec ? ` · ${o.recordingSec.toFixed(1)}s` : '')
+    : 'recording: none loaded this session');
+  log.info(`keys: AssemblyAI ${o.transcriptionKey ? 'set' : 'not set'} · YouTube link ${o.youtube ? 'given' : 'none'}`);
+  await log.flush();
 }

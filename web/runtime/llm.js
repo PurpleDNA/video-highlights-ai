@@ -42,11 +42,20 @@ function textOf(msg) {
     'raise maxTokens for this call.');
 }
 
-function logCache(label, msg) {
+// Where each call's one-line summary goes: the console by default, and the
+// run's log file while a run is going (runner.js swaps it in via setLogger —
+// one run at a time per worker, so a module-level hook is enough).
+let logLine = (level, line) => console.log(line);
+
+export function setLogger(fn) {
+  logLine = fn || ((level, line) => console.log(line));
+}
+
+function logCall(label, msg, ms) {
   const u = msg.usage;
-  console.log(`  [${label}] in=${u.input_tokens} ` +
-    `cache_write=${u.cache_creation_input_tokens ?? 0} ` +
-    `cache_read=${u.cache_read_input_tokens ?? 0} out=${u.output_tokens}`);
+  logLine('info', `model ${label}: ${(ms / 1000).toFixed(1)}s stop=${msg.stop_reason} `
+    + `in=${u.input_tokens} cache_write=${u.cache_creation_input_tokens ?? 0} `
+    + `cache_read=${u.cache_read_input_tokens ?? 0} out=${u.output_tokens}`);
 }
 
 async function request(label, system, messages, schema, maxTokens) {
@@ -61,9 +70,17 @@ async function request(label, system, messages, schema, maxTokens) {
   // Always stream. The SDK refuses a non-streaming request whose max_tokens
   // could take it past the HTTP timeout, and clip selection runs at 32k. We
   // want the whole message, so drain it with finalMessage().
-  const stream = await getClient().messages.stream(params);
-  const msg = await stream.finalMessage();
-  logCache(label, msg);
+  const began = Date.now();
+  let msg;
+  try {
+    const stream = await getClient().messages.stream(params);
+    msg = await stream.finalMessage();
+  } catch (err) {
+    logLine('error', `model ${label}: failed after ${((Date.now() - began) / 1000).toFixed(1)}s — `
+      + `${err && err.name}: ${err && err.message}`);
+    throw err;
+  }
+  logCall(label, msg, Date.now() - began);
   const text = textOf(msg);
   return schema ? JSON.parse(text) : text;
 }

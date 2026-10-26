@@ -49,6 +49,9 @@ self.onmessage = async (e) => {
       // are present. api.js posts `master` in over this same message.
       masterFile: msg.master ?? null,
       transcriptionKey: msg.transcriptionKey ?? null,
+      // The recording's length as the page's <video> read it, for the run
+      // log's "transcript covers only N% of the recording" check.
+      recordingSec: msg.recordingSec ?? null,
       emit: (event) => self.postMessage(event),
       signal: active.signal,
     });

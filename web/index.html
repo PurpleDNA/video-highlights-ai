@@ -297,6 +297,8 @@
             <div class="failure-actions">
               <button class="primary" data-go="input">Back to inputs</button>
               <button class="ghost" id="retry" hidden>Run it again</button>
+              <button class="ghost" id="failure-log"
+                      title="A text file to send when asking for help with this run">Download log</button>
             </div>
             <details class="trace" id="trace" hidden>
               <summary>Technical detail</summary>
@@ -320,6 +322,8 @@
           </div>
           <div class="resulthead-actions" id="export-actions">
             <span class="exportstatus" id="export-status"></span>
+            <button class="ghost" id="results-log"
+                    title="A text file to send when asking for help with this run">Download log</button>
             <!-- Shown only while a folder mirror is attached (settings.js's
              renderMirrorMeta) — with none it writes nowhere. -->
             <button

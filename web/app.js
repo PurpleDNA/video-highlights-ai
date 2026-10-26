@@ -323,6 +323,7 @@ async function renderPosterPreview(file) {
       video.onerror = () => reject(new Error('Could not read that as a video file.'));
     });
     if (gen !== state.posterGen) return;
+    api.noteRecordingDuration(video.duration);
 
     await new Promise((resolve) => {
       video.onseeked = resolve;
@@ -799,6 +800,8 @@ function renderResultHead() {
 // comes back.
 
 function wireExport() {
+  $('results-log').onclick = () => { if (state.run) downloadLog(state.run.slug); };
+  $('failure-log').onclick = () => { if (state.job) downloadLog(state.job.slug); };
   const folderBtn = $('export-actions').querySelector('[data-export-folder]');
   folderBtn.onclick = () => runExport({ toFolder: true, subtitles: true });
 
@@ -876,6 +879,17 @@ async function runExport(opts) {
     toast(err.message || 'Export failed.');
   } finally {
     setExportBusy(false);
+  }
+}
+
+/** The run's troubleshooting log (api.logBlob — runlog.js has what's in it),
+ *  as a .txt to send to whoever is helping. Read fresh on every click, so it
+ *  includes whatever just went wrong. */
+async function downloadLog(slugName) {
+  try {
+    downloadBlob(await api.logBlob(slugName), `${slugName}-log.txt`);
+  } catch (err) {
+    toast(`Could not build the log: ${err.message}`);
   }
 }
 

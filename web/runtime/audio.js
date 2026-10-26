@@ -98,8 +98,12 @@ function downmixToMono(data) {
  *  `onProgress`, if given, is called with a fraction in [0, 1]; it never
  *  goes backwards. `signal`, if given, is checked between file-read chunks
  *  and before each decode/encode flush, so an abort lands promptly rather
- *  than after the whole file has been read. */
-export async function extractAudio(file, onProgress, signal) {
+ *  than after the whole file has been read. `onInfo`, if given, is called
+ *  once with what was actually extracted against what the container says
+ *  is there — `{codec, sampleRate, channels, trackSec, expectedSamples,
+ *  extractedSamples, extractedSec, outputBytes}` — for runner.js's run log
+ *  and its "most of the audio is missing" check. */
+export async function extractAudio(file, onProgress, signal, onInfo) {
   const size = file.size;
   const progress = makeProgress(onProgress);
   throwIfAborted(signal);
@@ -276,7 +280,19 @@ export async function extractAudio(file, onProgress, signal) {
 
   muxer.finalize();
   progress(1);
-  return new Blob([muxer.target.buffer], { type: 'audio/mp4' });
+  const blob = new Blob([muxer.target.buffer], { type: 'audio/mp4' });
+  const last = aSamples[aSamples.length - 1];
+  onInfo?.({
+    codec: aInfo.codec,
+    sampleRate: aShape.sampleRate,
+    channels: aInfo.audio.channel_count,
+    trackSec: aInfo.duration / aInfo.timescale,
+    expectedSamples: aInfo.nb_samples,
+    extractedSamples: aSamples.length,
+    extractedSec: (last.cts + last.duration) / last.timescale,
+    outputBytes: blob.size,
+  });
+  return blob;
 }
 
 function clamp01(x) {

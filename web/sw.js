@@ -28,7 +28,7 @@
  * is not optional, and nothing else automates it (no build step here).
  */
 
-const SW_VERSION = 'v36'; // bump on every release that touches anything under web/
+const SW_VERSION = 'v37'; // bump on every release that touches anything under web/
 const CACHE_NAME = `video-highlights-${SW_VERSION}`;
 
 const ASSETS = [
@@ -55,6 +55,7 @@ const ASSETS = [
   './runtime/manifest.js',
   './runtime/prompts.js',
   './runtime/run-worker.js',
+  './runtime/runlog.js',
   './runtime/runner.js',
   './runtime/slug.js',
   './runtime/snap.js',
